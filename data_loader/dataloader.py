@@ -33,7 +33,7 @@ FUNCTION_TOKEN_LIST = [word.rstrip() for word in func_tokens]
 def get_raw_examples(filename, level='paragraph' ,debug=False, debug_length=20):
   print(f"Start get {filename} raw examples ...")
   start = datetime.now()
-  file = open(f"{filename}.json")
+  file = open(filename)
   data = json.load(file)
   articles = data['data']
   num_examples = 0
@@ -223,7 +223,7 @@ def get_processed_examples(raw_examples, debug=False, debug_length=20, shuffle=T
   return examples
   
 if __name__ == "__main__":
-  raws = get_raw_examples('Datasets/ViQuAD1.0/dev_ViQuAD', level='sentence', debug=True, debug_length=1)
+  raws = get_raw_examples('Datasets/ViQuAD1.0/dev_ViQuAD.json', level='sentence', debug=True, debug_length=1)
   processed = get_processed_examples(raws, debug=True)
   with open(r'debug.txt', 'w') as fp:
     for e in processed:
