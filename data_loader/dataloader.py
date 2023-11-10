@@ -1,6 +1,5 @@
 from datetime import datetime
 import json
-import torch
 # from utils.utils import normalize_text
 from tqdm import tqdm
 import random
@@ -211,10 +210,10 @@ def get_processed_examples(raw_examples, debug=False, debug_length=20, shuffle=T
     meta["num_q"] += 1
     
     if debug and meta["num_q"] >= debug_length:
-            break
+      break
 
     if shuffle:
-        random.shuffle(examples)
+      random.shuffle(examples)
 
   # print("num_not_match_error: ", num_not_match_error)
   # print("num_spans_len_error: ", num_spans_len_error)

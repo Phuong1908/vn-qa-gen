@@ -2,18 +2,17 @@ import os
 import torch
 import numpy as np
 from tqdm import tqdm
-from datetime import datetime
-from ..data_loader.dataloader import get_raw_examples, get_processed_examples
+from data_loader.dataloader import get_raw_examples, get_processed_examples
 
 
-def get_dataset(tokenizer, dataset_cache, path, split='train', filetype='squad', debug=False, debug_length=20):
+def get_dataset(tokenizer, dataset_cache, path, debug=False, debug_length=20):
     # Load question data
     if dataset_cache and os.path.isfile(dataset_cache):  #!!! NOTICE: make sure dataset_cache is correct version.
         print("Load tokenized dataset from cache at %s", dataset_cache)
         data = torch.load(dataset_cache)
         return data
 
-    data = get_positional_dataset_from_file(tokenizer, file=path, filetype=filetype, debug=debug, debug_length=debug_length)
+    data = get_positional_dataset_from_file(tokenizer, file=path, debug=debug, debug_length=debug_length)
 
     if dataset_cache:
         torch.save(data, dataset_cache)

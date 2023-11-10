@@ -11,7 +11,7 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader, TensorDataset
 
 from transformers.models.bartpho.tokenization_bartpho import BartphoTokenizer
-from transformers import AutoModelForMaskGeneration
+from transformers import AutoModelForSeq2SeqLM
 from transformers import WEIGHTS_NAME, CONFIG_NAME
 
 from ignite.engine import Engine, Events
@@ -106,9 +106,9 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
 def get_data_loaders(tokenizer, args):
   datasets_raw = {}
   logger.info("Loading training data")
-  datasets_raw['train'] = get_dataset(tokenizer, args.train_dataset_cache_path, args.train_dataset_path, 'train', args.filetype, args.debug)
+  datasets_raw['train'] = get_dataset(tokenizer, args.train_dataset_cache_path, args.train_dataset_path, 'train', args.debug)
   logger.info("Loading validation data")
-  datasets_raw['valid'] = get_dataset(tokenizer, args.dev_dataset_cache_path, args.dev_dataset_path, 'dev', args.filetype, args.debug)
+  datasets_raw['valid'] = get_dataset(tokenizer, args.dev_dataset_cache_path, args.dev_dataset_path, 'dev', args.debug)
   
   
   logger.info("Build inputs and labels")
@@ -142,13 +142,13 @@ def get_data_loaders(tokenizer, args):
 
 def train():
   args = parser.parse_args()
-  tokenizer = BartphoTokenizer.from_pretrained(args.pretrained_model)
+  tokenizer = BartphoTokenizer.from_pretrained(args.model_name_or_path)
   tokenizer.add_tokens(SPECIAL_TOKENS)
-  model = AutoModelForMaskGeneration.from_pretrained(args.pretrained_model)
+  model = AutoModelForSeq2SeqLM.from_pretrained(args.model_name_or_path)
   model.to(args.device)
   optimizer = AdamW(model.parameters(), lr=args.lr)
   
-  train_loader, val_loader = get_data_loaders(args, tokenizer)
+  train_loader, val_loader = get_data_loaders(tokenizer, args)
   # Training function and trainer
   def update(engine, batch):
     model.train()
@@ -193,27 +193,26 @@ def train():
   metrics = {
       "nll": Loss(torch.nn.CrossEntropyLoss(ignore_index=-1))
   }
-  metrics["average_ppl"] = MetricsLambda(math.exp, metrics["average_nll"])
+  metrics["ppl"] = MetricsLambda(math.exp, metrics["nll"])
   for name, metric in metrics.items():
       metric.attach(evaluator, name)
 
   # On the main process: add progress bar, tensorboard, checkpoints and save model, configuration and tokenizer before we start to train
-  if args.local_rank in [-1, 0]:
-    pbar = ProgressBar(persist=True)
-    pbar.attach(trainer, metric_names=["loss"])
-    evaluator.add_event_handler(Events.COMPLETED, lambda _: pbar.log_message("Validation: %s" % pformat(evaluator.state.metrics)))
+  pbar = ProgressBar(persist=True)
+  pbar.attach(trainer, metric_names=["loss"])
+  evaluator.add_event_handler(Events.COMPLETED, lambda _: pbar.log_message("Validation: %s" % pformat(evaluator.state.metrics)))
 
-    checkpoint_handler = ModelCheckpoint(args.output_dir, 'checkpoint', save_interval=None, n_saved=3)  # !!!NOTICE: if fill exist, it will report error. set require_empty=False can avoid this.
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {'mymodel': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
+  checkpoint_handler = ModelCheckpoint(args.output_dir, 'checkpoint', save_interval=None, n_saved=3)  # !!!NOTICE: if fill exist, it will report error. set require_empty=False can avoid this.
+  trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {'mymodel': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
 
-    model.save_pretrained(args.output_dir)
+  model.save_pretrained(args.output_dir)
 
-    # torch.save(args, args.output_dir + '/model_training_args.bin')
-    getattr(model, 'module', model).config.to_json_file(os.path.join(args.output_dir, CONFIG_NAME))
-    tokenizer.save_vocabulary(args.output_dir)
-    
-    if args.n_epochs > 0:
-      os.rename(checkpoint_handler._saved[-1][1][-1], os.path.join(args.output_dir, WEIGHTS_NAME)) 
+  # torch.save(args, args.output_dir + '/model_training_args.bin')
+  getattr(model, 'module', model).config.to_json_file(os.path.join(args.output_dir, CONFIG_NAME))
+  tokenizer.save_vocabulary(args.output_dir)
+  
+  if args.n_epochs > 0:
+    os.rename(checkpoint_handler._saved[-1][1][-1], os.path.join(args.output_dir, WEIGHTS_NAME)) 
 
   # Run the training
   trainer.run(train_loader, max_epochs=args.n_epochs)

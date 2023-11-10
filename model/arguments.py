@@ -58,5 +58,5 @@ parser.add_argument(
     '--data_type', default='squad', type=str, help='data type'
 )
 parser.add_argument(
-    "--debug", action='store_true', help="If true we use debug mode"
+    "--debug", default=False, action='store_true', help="If true we use debug mode"
 )
