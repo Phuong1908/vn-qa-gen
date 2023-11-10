@@ -2,3 +2,5 @@ underthesea
 torch
 tqdm
 transformers
+sentencepiece
+pytorch-ignite
