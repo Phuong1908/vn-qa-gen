@@ -106,10 +106,9 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
 def get_data_loaders(tokenizer, args):
   datasets_raw = {}
   logger.info("Loading training data")
-  datasets_raw['train'] = get_dataset(tokenizer, args.train_dataset_cache_path, args.train_dataset_path, 'train', args.debug)
+  datasets_raw['train'] = get_dataset(tokenizer, args.train_dataset_cache_path, args.train_dataset_path, args.debug)
   logger.info("Loading validation data")
-  datasets_raw['valid'] = get_dataset(tokenizer, args.dev_dataset_cache_path, args.dev_dataset_path, 'dev', args.debug)
-  
+  datasets_raw['valid'] = get_dataset(tokenizer, args.dev_dataset_cache_path, args.dev_dataset_path, args.debug)
   
   logger.info("Build inputs and labels")
   datasets = {
@@ -198,21 +197,22 @@ def train():
       metric.attach(evaluator, name)
 
   # On the main process: add progress bar, tensorboard, checkpoints and save model, configuration and tokenizer before we start to train
-  pbar = ProgressBar(persist=True)
-  pbar.attach(trainer, metric_names=["loss"])
-  evaluator.add_event_handler(Events.COMPLETED, lambda _: pbar.log_message("Validation: %s" % pformat(evaluator.state.metrics)))
+  if args.local_rank in [-1, 0]:
+    pbar = ProgressBar(persist=True)
+    pbar.attach(trainer, metric_names=["loss"])
+    evaluator.add_event_handler(Events.COMPLETED, lambda _: pbar.log_message("Validation: %s" % pformat(evaluator.state.metrics)))
 
-  checkpoint_handler = ModelCheckpoint(args.output_dir, 'checkpoint', save_interval=None, n_saved=3)  # !!!NOTICE: if fill exist, it will report error. set require_empty=False can avoid this.
-  trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {'mymodel': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
+    checkpoint_handler = ModelCheckpoint(args.output_dir, 'checkpoint', save_interval=None, n_saved=3)  # !!!NOTICE: if fill exist, it will report error. set require_empty=False can avoid this.
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {'mymodel': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
 
-  model.save_pretrained(args.output_dir)
+    model.save_pretrained(args.output_dir)
 
-  # torch.save(args, args.output_dir + '/model_training_args.bin')
-  getattr(model, 'module', model).config.to_json_file(os.path.join(args.output_dir, CONFIG_NAME))
-  tokenizer.save_vocabulary(args.output_dir)
-  
-  if args.n_epochs > 0:
-    os.rename(checkpoint_handler._saved[-1][1][-1], os.path.join(args.output_dir, WEIGHTS_NAME)) 
+    # torch.save(args, args.output_dir + '/model_training_args.bin')
+    getattr(model, 'module', model).config.to_json_file(os.path.join(args.output_dir, CONFIG_NAME))
+    tokenizer.save_vocabulary(args.output_dir)
+    
+    if args.local_rank in [-1, 0] and args.n_epochs > 0:
+      os.rename(checkpoint_handler._saved[-1][1][-1], os.path.join(args.output_dir, WEIGHTS_NAME)) 
 
   # Run the training
   trainer.run(train_loader, max_epochs=args.n_epochs)

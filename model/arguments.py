@@ -60,3 +60,6 @@ parser.add_argument(
 parser.add_argument(
     "--debug", default=False, action='store_true', help="If true we use debug mode"
 )
+parser.add_argument(
+    "--local_rank", type=int, default=-1, help="Local rank for distributed training (-1: not distributed)"
+)
