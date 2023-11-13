@@ -25,7 +25,7 @@ MODEL_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
 
 logger = logging.getLogger(__file__)
 
-def pad_dataset(dataset, dataset_name, padding=0, ):
+def pad_dataset(dataset, dataset_name, padding=0):
     """ Pad the dataset. This could be optimized by defining a Dataset class and padd only batches but this is simpler. """
     max_l = max(len(x) for x in dataset["input_ids"])
     masked_value = -100 if dataset_name == 'train' else -1
@@ -144,6 +144,7 @@ def train():
   tokenizer = BartphoTokenizer.from_pretrained(args.model_name_or_path)
   tokenizer.add_tokens(SPECIAL_TOKENS)
   model = AutoModelForSeq2SeqLM.from_pretrained(args.model_name_or_path)
+  model.resize_token_embeddings(len(tokenizer))
   model.to(args.device)
   optimizer = AdamW(model.parameters(), lr=args.lr)
   
@@ -152,8 +153,8 @@ def train():
   def update(engine, batch):
     model.train()
     inputs = tuple(input_tensor.to(args.device) for input_tensor in batch) 
-    cur_input_ids, cur_lm_labels, cur_token_type_ids = inputs
-    outputs = model(input_ids=cur_input_ids, token_type_ids=cur_token_type_ids, labels=cur_lm_labels)
+    cur_input_ids, cur_lm_labels, _ = inputs
+    outputs = model(input_ids=cur_input_ids, labels=cur_lm_labels)
     loss = outputs.loss
     loss.backward()
     optimizer.step()
@@ -210,13 +211,12 @@ def train():
     # torch.save(args, args.output_dir + '/model_training_args.bin')
     getattr(model, 'module', model).config.to_json_file(os.path.join(args.output_dir, CONFIG_NAME))
     tokenizer.save_vocabulary(args.output_dir)
-    
-    if args.local_rank in [-1, 0] and args.n_epochs > 0:
-      os.rename(checkpoint_handler._saved[-1][1][-1], os.path.join(args.output_dir, WEIGHTS_NAME)) 
-
-  # Run the training
-  trainer.run(train_loader, max_epochs=args.n_epochs)
   
+  # Run the training 
+  trainer.run(train_loader, max_epochs=args.n_epochs)
+    
+  if args.local_rank in [-1, 0] and args.n_epochs > 0:
+     os.rename(checkpoint_handler._saved[-1][1][-1], os.path.join(args.output_dir, WEIGHTS_NAME)) 
   
 if __name__ == "__main__":
     train()
