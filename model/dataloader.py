@@ -61,9 +61,9 @@ def get_positional_dataset_from_file(tokenizer, file, debug=False, debug_length=
 
         if total_seq_len > tokenizer.model_max_length:
             # Heuristic to chop off extra tokens in paragraphs
-            tokenized_para = tokenized_para[:-1 * (total_seq_len - tokenizer.max_len + 1)]
+            tokenized_para = tokenized_para[:-1 * (total_seq_len - tokenizer.model_max_length + 1)]
             truncated_sequences += 1
-            assert len(tokenized_para) + len(tokenized_answer) + len(tokenized_question) + len(tokenized_clue) + len(tokenized_qtype) + 6 < tokenizer.max_len
+            assert len(tokenized_para) + len(tokenized_answer) + len(tokenized_question) + len(tokenized_clue) + len(tokenized_qtype) + 6 < tokenizer.model_max_length
 
         inst['paragraph'] = tokenizer.convert_tokens_to_ids(tokenized_para)
         inst['question'] = tokenizer.convert_tokens_to_ids(tokenized_question)
