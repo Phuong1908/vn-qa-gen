@@ -125,7 +125,7 @@ def get_clue_info(question, sentence, answer):
         "ans_sent": sentence,
         "answer_text": answer}
 
-    doc = underthesea.ner(sentence)
+    # doc = underthesea.ner(sentence)
     chunklist = get_chunks(sentence)
         
     # example["ans_sent_tokens"] = word_tokenize(sentence)

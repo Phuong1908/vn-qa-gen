@@ -4,3 +4,4 @@ tqdm
 transformers
 sentencepiece
 pytorch-ignite
+torchtext
