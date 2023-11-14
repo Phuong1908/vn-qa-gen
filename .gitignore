@@ -1,3 +1,5 @@
-Datasets/*/
+Datasets/ViNewsQA/
+Datasets/ViQuAD1.0/
+Datasets/QG/
 *__pycache__/
 output/
