@@ -167,9 +167,9 @@ def train():
     model.eval()
     with torch.no_grad():
       batch = tuple(input_tensor.to(args.device) for input_tensor in batch)
-      input_ids, lm_labels, token_type_ids = batch
+      input_ids, lm_labels, _ = batch
       
-      model_outputs = model(input_ids, token_type_ids=token_type_ids)
+      model_outputs = model(input_ids)
       lm_logits = model_outputs.logits
       
       lm_logits_flat = lm_logits.contiguous().view(-1, lm_logits.size(-1))
