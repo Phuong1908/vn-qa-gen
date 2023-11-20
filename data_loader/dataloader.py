@@ -17,11 +17,12 @@ Q_TYPE2ID_DICT = {
     "Where": 3, "When": 4, "Why": 5, "Other": 7}
 INFO_QUESTION_TYPES_MAPPING = {
   "Who": ["ai", "người nào"],
-  "Where": ["ở đâu", "nơi nào", "đâu"],
-  "When": ["khi nào", "lúc nào"],
+  "Where": ["ở đâu", "nơi nào", "đâu", "người nào"],
+  "When": ["khi nào", "lúc nào", "thời gian nào", "thời điểm nào"],
   "Why": ["tại sao", "vì sao", "do đâu"], 
-  "How": ["thế nào", "bao nhiêu"],
-  "What": ["cái gì", "là gì", "gì"], 
+  "How many": ["bao nhiêu"],
+  "How": ["thế nào", "như thế nào"],
+  "What": ["cái gì", "là gì", "gì", "nào"], 
 }
 
 FUNCTION_TOKENS_FILE_PATH = 'Datasets/function-tokens.txt'
@@ -93,15 +94,20 @@ def get_question_type(question):
   """
   Given a string question, return its type name and type id.
   :param question: question string.
-  :return: (question_type_str, question_type_id)
+  :return: (question_type, question_type_id, question_type_text)
   """
-  words = question.split()
+  # for i in INFO_QUESTION_TYPES:
+  #   for j in INFO_QUESTION_TYPES_MAPPING[i]:
+  #     if j.lower() in question.lower():
+  #       return (i, Q_TYPE2ID_DICT[i], j)
+  # return ("Other", Q_TYPE2ID_DICT["Other"], "Other")
+  words = word_tokenize(question)
   for word in words:
     for i in INFO_QUESTION_TYPES:
       for j in INFO_QUESTION_TYPES_MAPPING[i]:
-        if j.upper() in word.upper():
-          return (i, Q_TYPE2ID_DICT[i])
-  return ("Other", Q_TYPE2ID_DICT["Other"])
+        if j.lower() == word.lower():
+          return (i, Q_TYPE2ID_DICT[i], j)
+  return ("Other", Q_TYPE2ID_DICT["Other"], "Other")
 
 def get_chunks(sentence): #chunking
     """
@@ -125,12 +131,9 @@ def get_clue_info(question, sentence, answer):
         "ans_sent": sentence,
         "answer_text": answer}
 
-    # doc = underthesea.ner(sentence)
     chunklist = get_chunks(sentence)
         
-    # example["ans_sent_tokens"] = word_tokenize(sentence)
-    example["ques_tokens"] = word_tokenize(question)
-    # example["ans_sent_doc"] = doc
+    example["ques_tokens"] = question.split()
 
     clue_rank_scores = []
     for chunk in chunklist:
@@ -144,13 +147,13 @@ def get_clue_info(question, sentence, answer):
         candidate_clue_tokens_in_ques = [candidate_clue_tokens[i] for i in range(len(candidate_clue_tokens)) if candidate_clue_tokens[i].lower() in ques_tokens]
         candidate_clue_content_tokens = [candidate_clue_tokens[i] for i in range(len(candidate_clue_tokens)) if candidate_clue_is_content[i] == 1]
         candidate_clue_content_tokens_in_ques = [candidate_clue_content_tokens[i] for i in range(len(candidate_clue_content_tokens)) if candidate_clue_content_tokens[i].lower() in ques_tokens]
-
+        
         score = 0
         if  len(candidate_clue_tokens_in_ques) == len(candidate_clue_tokens) and \
                 sum(candidate_clue_is_content) > 0 and \
                 candidate_clue_tokens[0].lower() not in FUNCTION_TOKEN_LIST:
             score += len(candidate_clue_content_tokens_in_ques) # number of overlap token between q and c
-            score += int(candidate_clue_text.lower() in ques_lower) # binary core if q contain chunk c
+            score += int(candidate_clue_text.lower() in ques_lower) # binary score if q contain chunk c
         clue_rank_scores.append(score)
     max_score = max(clue_rank_scores)
     
@@ -184,7 +187,7 @@ def get_processed_examples(raw_examples, debug=False, debug_length=20, shuffle=T
     #question
     ques = normalize_text(example["question"])
     # ques = "<sos> " + ques + " <eos>"  # notice: this is important for QG
-    ques_type, _ = get_question_type(example["question"]) # style
+    ques_type, _, ques_type_text = get_question_type(example["question"]) # style
     
     # answer info
     answer_text = normalize_text(example["answer_text"])
@@ -198,7 +201,8 @@ def get_processed_examples(raw_examples, debug=False, debug_length=20, shuffle=T
             "paragraph": paragraph,
 
             "question": ques,
-            "ques_type": ques_type,  # string type
+            "ques_type": ques_type,
+            "ques_type_text": ques_type_text,
 
             "answer": answer_text,
             "answer_start": answer_start,
@@ -222,8 +226,8 @@ def get_processed_examples(raw_examples, debug=False, debug_length=20, shuffle=T
   return examples
   
 if __name__ == "__main__":
-  raws = get_raw_examples('Datasets/ViQuAD1.0/dev_ViQuAD.json', level='sentence', debug=True, debug_length=1)
-  processed = get_processed_examples(raws, debug=True)
+  raws = get_raw_examples('Datasets/ViQuAD1.0/dev_ViQuAD.json', level='sentence', debug=True, debug_length=2)
+  processed = get_processed_examples(raws, debug=True, debug_length=40)
   with open(r'debug.txt', 'w') as fp:
     for e in processed:
       fp.write("%s\n" % e)

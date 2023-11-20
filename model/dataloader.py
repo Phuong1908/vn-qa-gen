@@ -55,7 +55,7 @@ def get_positional_dataset_from_file(tokenizer, file, debug=False, debug_length=
         else:
             tokenized_clue = []
 
-        tokenized_qtype = tokenizer.tokenize(inst['ques_type'])
+        tokenized_qtype = tokenizer.tokenize(inst['ques_type_text'])
 
         total_seq_len = len(tokenized_para) + len(tokenized_answer) + len(tokenized_question) + len(tokenized_clue) + len(tokenized_qtype) + 6
 
