@@ -1,5 +1,6 @@
 datadir="Datasets"
 
+mkdir Datasets/processed
 mkdir Datasets/processed/ViNewsQA
 mkdir Datasets/processed/ViQuAD
 
