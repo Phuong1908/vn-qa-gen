@@ -1,5 +1,4 @@
 python3 QG_train.py \
-    --eval_before_start \
     --n_epochs 4 \
     --local_rank 0 \
     --train_batch_size 2 \
