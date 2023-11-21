@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import re
 # from utils.utils import normalize_text
 from tqdm import tqdm
 import random
@@ -17,12 +18,12 @@ Q_TYPE2ID_DICT = {
     "Where": 3, "When": 4, "Why": 5, "Other": 7}
 INFO_QUESTION_TYPES_MAPPING = {
   "Who": ["ai", "người nào"],
-  "Where": ["ở đâu", "nơi nào", "đâu", "người nào"],
+  "Where": ["ở đâu", "nơi nào", "đâu"],
   "When": ["khi nào", "lúc nào", "thời gian nào", "thời điểm nào"],
   "Why": ["tại sao", "vì sao", "do đâu"], 
   "How many": ["bao nhiêu"],
   "How": ["thế nào", "như thế nào"],
-  "What": ["cái gì", "là gì", "gì", "nào"], 
+  "What": ["là gì", "gì", "nào"], 
 }
 
 FUNCTION_TOKENS_FILE_PATH = 'Datasets/function-tokens.txt'
@@ -63,6 +64,11 @@ def get_raw_examples(filename, level='paragraph' ,debug=False, debug_length=20):
   print("Number of raw examples: ", len(raw_examples))
   return raw_examples
 
+def check_sentence(a, b):
+    pattern = r'\b' + re.escape(b) + r'\b'
+    match = re.search(pattern, a)
+    return match is not None
+
 def normalize_text(text):
     """
     Replace some special characters in text.
@@ -96,18 +102,18 @@ def get_question_type(question):
   :param question: question string.
   :return: (question_type, question_type_id, question_type_text)
   """
-  # for i in INFO_QUESTION_TYPES:
-  #   for j in INFO_QUESTION_TYPES_MAPPING[i]:
-  #     if j.lower() in question.lower():
-  #       return (i, Q_TYPE2ID_DICT[i], j)
-  # return ("Other", Q_TYPE2ID_DICT["Other"], "Other")
-  words = word_tokenize(question)
-  for word in words:
-    for i in INFO_QUESTION_TYPES:
-      for j in INFO_QUESTION_TYPES_MAPPING[i]:
-        if j.lower() == word.lower():
-          return (i, Q_TYPE2ID_DICT[i], j)
+  for i in INFO_QUESTION_TYPES:
+    for j in INFO_QUESTION_TYPES_MAPPING[i]:
+      if j.lower() in question.lower() and check_sentence(question.lower(), j.lower()):
+        return (i, Q_TYPE2ID_DICT[i], j)
   return ("Other", Q_TYPE2ID_DICT["Other"], "Other")
+  # words = word_tokenize(question)
+  # for word in words:
+  #   for i in INFO_QUESTION_TYPES:
+  #     for j in INFO_QUESTION_TYPES_MAPPING[i]:
+  #       if j.lower() == word.lower():
+  #         return (i, Q_TYPE2ID_DICT[i], j)
+  # return ("Other", Q_TYPE2ID_DICT["Other"], "Other")
 
 def get_chunks(sentence): #chunking
     """
