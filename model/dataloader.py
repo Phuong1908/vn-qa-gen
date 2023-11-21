@@ -54,8 +54,11 @@ def get_positional_dataset_from_file(tokenizer, file, debug=False, debug_length=
             tokenized_clue_prefix = tokenizer.tokenize(inst['paragraph'][:inst['clue_position']])
         else:
             tokenized_clue = []
-
-        tokenized_qtype = tokenizer.tokenize(inst['ques_type_text'])
+        # if question type is Other, using <mask> token to represent the question stype
+        if inst['ques_type'] == "Other":
+          tokenized_qtype = '<mask>'
+        else:
+          tokenized_qtype = tokenizer.tokenize(inst['ques_type_text'])
 
         total_seq_len = len(tokenized_para) + len(tokenized_answer) + len(tokenized_question) + len(tokenized_clue) + len(tokenized_qtype) + 6
 
