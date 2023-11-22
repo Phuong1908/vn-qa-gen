@@ -191,7 +191,7 @@ def train():
   # Prepare metrics - note how we compute distributed metrics
   RunningAverage(output_transform=lambda x: x).attach(trainer, "loss")
   metrics = {
-      "nll": Loss(torch.nn.CrossEntropyLoss(ignore_index=-1))
+      "nll": Loss(torch.nn.CrossEntropyLoss(ignore_index=-100))
   }
   metrics["ppl"] = MetricsLambda(math.exp, metrics["nll"])
   for name, metric in metrics.items():
