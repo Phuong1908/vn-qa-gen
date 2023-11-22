@@ -1,6 +1,7 @@
 python3 QG_train.py \
     --n_epochs 4 \
     --eval_before_start \
+    --lr 0.00003 \
     --local_rank 0 \
     --train_batch_size 2 \
     --model_name_or_path /kaggle/working/vn-qa-gen/model_param  \
