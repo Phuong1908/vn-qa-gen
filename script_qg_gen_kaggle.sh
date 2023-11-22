@@ -1,4 +1,4 @@
-output_path="/Users/phuongnguyen/study/vn-qa-gen/Datasets/processed/SQuAD2.0/"
+output_path="/Users/phuongnguyen/study/vn-qa-gen/datasets/processed/SQuAD2.0/"
 data_file_prefix="train"
 st_idx=0
 ed_idx=1000

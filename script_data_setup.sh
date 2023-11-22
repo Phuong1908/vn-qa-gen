@@ -1,8 +1,8 @@
-datadir="Datasets"
+datadir="datasets"
 
-mkdir Datasets/processed
-mkdir Datasets/processed/ViNewsQA
-mkdir Datasets/processed/ViQuAD
+mkdir datasets/processed
+mkdir datasets/processed/ViNewsQA
+mkdir datasets/processed/ViQuAD
 
 unzip "$datadir/ViNewsQA.zip" -d "$datadir"
 chmod a+rx "$datadir"/ViNewsQA

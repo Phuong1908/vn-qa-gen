@@ -1,6 +1,7 @@
-Datasets/ViNewsQA/
-Datasets/ViQuAD1.0/
-Datasets/processed
+datasets/ViNewsQA/
+datasets/ViQuAD1.0/
+datasets/processed
 *__pycache__/
 output/
 .DS_Store
+.vscode
