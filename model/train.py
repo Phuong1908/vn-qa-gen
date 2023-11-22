@@ -28,9 +28,9 @@ logger = logging.getLogger(__file__)
 def pad_dataset(dataset, dataset_name, padding=0):
     """ Pad the dataset. This could be optimized by defining a Dataset class and padd only batches but this is simpler. """
     max_l = max(len(x) for x in dataset["input_ids"])
-    masked_value = -100 if dataset_name == 'train' else -1
+    masked_value = -100 
     for name in MODEL_INPUTS:
-        dataset[name] = [x + [padding if name != "lm_labels" else masked_value] * (max_l - len(x)) for x in dataset[name]]
+        dataset[name] = [x + [padding if name != "lm_labels" else masked_value] * (max_l - len(x)) for x in dataset[name]] #padding input from the right
     return dataset
 
 def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True):
@@ -43,7 +43,7 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
   """
   sos, eos, paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
 
-  masked_value = -100 if dataset_name == 'train' else -1
+  masked_value = -100
   curr_para = data_point['paragraph']
   curr_ans = data_point['answer']
   curr_ques = data_point['question']
