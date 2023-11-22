@@ -1,5 +1,6 @@
 python3 QG_train.py \
     --n_epochs 4 \
+    --eval_before_start \
     --local_rank 0 \
     --train_batch_size 2 \
     --model_name_or_path vinai/bartpho-syllable  \
