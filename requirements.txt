@@ -4,5 +4,5 @@ tqdm
 transformers
 sentencepiece
 pytorch-ignite
-torchtext
 gdown
+PyDrive2

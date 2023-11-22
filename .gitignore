@@ -5,3 +5,5 @@ datasets/processed/*
 output/
 .DS_Store
 .vscode
+client_secrets.json
+mycreds.txt
