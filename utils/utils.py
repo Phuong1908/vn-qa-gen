@@ -26,7 +26,7 @@ def gg_auth():
   return gauth
   
 
-def save_result_to_drive(epoch, path, prefix, score, save_checkpoint):
+def save_result_to_drive(epoch, path, prefix, score, weight_file_path):
   filename = f'{prefix}.epoch{epoch}'
   result_folder = f'{path}/{filename}'
   os.mkdir(result_folder)
@@ -35,12 +35,9 @@ def save_result_to_drive(epoch, path, prefix, score, save_checkpoint):
   with open(f'{result_folder}/training_result.json', "w") as outfile: 
     json.dump(score, outfile)
     
-  # save model into file
-  if callable(save_checkpoint):
-    save_checkpoint()
-  else:
-    print("ERROR!!!: save_checkpoint must be callable")
-    
+  # move weight file to result folder
+  move_file(weight_file_path, result_folder)
+     
   # compress folder
   shutil.make_archive(result_folder, 'zip', result_folder)
 
@@ -56,6 +53,28 @@ def save_result_to_drive(epoch, path, prefix, score, save_checkpoint):
   file_drive.Upload()
   print(f"Uploaded file with ID {file_drive.get('id')}")
 
+
+def move_file(src_file, dst_dir):
+    # check if source file exists
+    if not os.path.isfile(src_file):
+        print(f"Source file {src_file} does not exist.")
+        return
+
+    # check if destination directory exists
+    if not os.path.isdir(dst_dir):
+        print(f"Destination directory {dst_dir} does not exist.")
+        return
+
+    # get the base name of the file
+    base_name = os.path.basename(src_file)
+
+    # construct destination file path
+    dst_file = os.path.join(dst_dir, base_name)
+
+    # move the file
+    shutil.move(src_file, dst_file)
+    print(f"File {src_file} moved to {dst_file}")
+    
 
 def normalize_text(text):
     """
