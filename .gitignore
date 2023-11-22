@@ -1,6 +1,6 @@
 datasets/ViNewsQA/
 datasets/ViQuAD1.0/
-datasets/processed
+datasets/processed/*
 *__pycache__/
 output/
 .DS_Store
