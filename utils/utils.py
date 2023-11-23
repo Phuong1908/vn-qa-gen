@@ -26,8 +26,8 @@ def gg_auth():
   return gauth
   
 
-def save_result_to_drive(epoch, path, prefix, score, weight_file_path):
-  filename = f'{prefix}.epoch{epoch}'
+def save_result_to_drive(epoch, path, score , checkpoint_file_path, prefix='checkpoint'):
+  filename = f'{prefix}.epoch_{epoch}'
   result_folder = f'{path}/{filename}'
   os.mkdir(result_folder)
   
@@ -36,7 +36,7 @@ def save_result_to_drive(epoch, path, prefix, score, weight_file_path):
     json.dump(score, outfile)
     
   # move weight file to result folder
-  move_file(weight_file_path, result_folder)
+  move_file(checkpoint_file_path, result_folder)
      
   # compress folder
   shutil.make_archive(result_folder, 'zip', result_folder)
