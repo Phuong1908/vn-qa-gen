@@ -53,20 +53,20 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
   ans_end = data_point['answer_position_tokenized'][1]
   curr_style = data_point['style']
 
-  clue_exist = (data_point['clue_start'] is not None)
-  if clue_exist:
-      curr_clue = data_point['clue']
-      clue_start = data_point['clue_position_tokenized'][0]
-      clue_end = data_point['clue_position_tokenized'][1]
-  else:
-      curr_clue = []
+  # clue_exist = (data_point['clue_start'] is not None)
+  # if clue_exist:
+  #     curr_clue = data_point['clue']
+  #     clue_start = data_point['clue_position_tokenized'][0]
+  #     clue_end = data_point['clue_position_tokenized'][1]
+  # else:
+  #     curr_clue = []
 
   # <sos> paragraph
   sequence = [sos] + curr_para
   # This segmentation will encode positional information
   token_types = [paragraph for i in range(len(curr_para) + 1)]
-  if clue_exist:
-      token_types[clue_start + 1:clue_end + 1] = [clue] * (clue_end - clue_start)
+  # if clue_exist:
+  #     token_types[clue_start + 1:clue_end + 1] = [clue] * (clue_end - clue_start)
   token_types[ans_start + 1:ans_end + 1] = [answer] * (ans_end - ans_start)
   lm_labels = [masked_value for _ in range(len(curr_para) + 1)]
 
@@ -76,9 +76,9 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
   lm_labels.extend([masked_value for _ in range(len(curr_ans) + 1)])
 
   # <sos> paragraph <answer> answer <clue> clue
-  sequence.extend([clue] + curr_clue)
-  token_types.extend([clue for _ in range(len(curr_clue) + 1)])
-  lm_labels.extend([masked_value for _ in range(len(curr_clue) + 1)])
+  # sequence.extend([clue] + curr_clue)
+  # token_types.extend([clue for _ in range(len(curr_clue) + 1)])
+  # lm_labels.extend([masked_value for _ in range(len(curr_clue) + 1)])
 
   # <sos> paragraph <answer> answer <clue> clue <style> style
   sequence.extend([style] + curr_style)
