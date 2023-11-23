@@ -26,7 +26,7 @@ INFO_QUESTION_TYPES_MAPPING = {
   "What": ["là gì", "gì", "nào"], 
 }
 
-FUNCTION_TOKENS_FILE_PATH = 'Datasets/function-tokens.txt'
+FUNCTION_TOKENS_FILE_PATH = 'datasets/function-tokens.txt'
 f_func_tokens = open(FUNCTION_TOKENS_FILE_PATH, "r", encoding="utf-8")
 func_tokens = f_func_tokens.readlines()
 FUNCTION_TOKEN_LIST = [word.rstrip() for word in func_tokens]
@@ -232,7 +232,7 @@ def get_processed_examples(raw_examples, debug=False, debug_length=20, shuffle=T
   return examples
   
 if __name__ == "__main__":
-  raws = get_raw_examples('Datasets/ViQuAD1.0/dev_ViQuAD.json', level='sentence', debug=True, debug_length=2)
+  raws = get_raw_examples('datasets/ViQuAD1.0/dev_ViQuAD.json', level='sentence', debug=True, debug_length=2)
   processed = get_processed_examples(raws, debug=True, debug_length=40)
   with open(r'debug.txt', 'w') as fp:
     for e in processed:
