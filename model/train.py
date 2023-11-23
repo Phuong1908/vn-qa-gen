@@ -4,6 +4,7 @@ from pprint import pformat
 from .arguments import *
 from .dataloader import get_dataset
 from collections import defaultdict
+from utils.utils import save_result_to_drive
 
 import logging
 import torch
@@ -22,6 +23,7 @@ from ignite.contrib.handlers import ProgressBar, PiecewiseLinear
 
 SPECIAL_TOKENS = ['<sos>', '<eos>', '<paragraph>', '<clue>', '<style>', '<answer>', '<question>', '<pad>']
 MODEL_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
+CHECKPOINT_PREFIX = 'checkpoint'
 
 logger = logging.getLogger(__file__)
 
@@ -176,6 +178,13 @@ def train():
       lm_labels_flat = lm_labels.contiguous().view(-1)
 
       return lm_logits_flat, lm_labels_flat
+  
+  def upload_data_to_drive(engine):
+    epoch = engine.state.epoch
+    score = engine.state.metrics
+    checkpoint_file_path = f'{args.output_dir}/{CHECKPOINT_PREFIX}_epoch_{epoch}.pt'
+    save_result_to_drive(epoch, args.prefix, args.output_dir,score, checkpoint_file_path)
+  
   evaluator = Engine(inference)
     # Attach evaluation to trainer: we evaluate when we start the training and at the end of each epoch
   trainer.add_event_handler(Events.EPOCH_COMPLETED, lambda _: evaluator.run(val_loader))
@@ -203,12 +212,17 @@ def train():
     pbar.attach(trainer, metric_names=["loss"])
     evaluator.add_event_handler(Events.COMPLETED, lambda _: pbar.log_message("Validation: %s" % pformat(evaluator.state.metrics)))
 
-    checkpoint_handler = ModelCheckpoint(args.output_dir, 'checkpoint', save_interval=None, n_saved=3)  # !!!NOTICE: if fill exist, it will report error. set require_empty=False can avoid this.
-    trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {'mymodel': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
-
+    checkpoint_handler = ModelCheckpoint(args.output_dir,
+                                         filename_prefix=CHECKPOINT_PREFIX,
+                                         filename_pattern='{filename_prefix}_{name}_{global_step}.{ext}',
+                                         global_step_transform=lambda e, _: e.state.epoch,
+                                         save_interval=None,
+                                         n_saved=3)  # !!!NOTICE: if fill exist, it will report error. set require_empty=False can avoid this.
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {'epoch': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
+    trainer.add_event_handler(Events.EPOCH_COMPLETED, upload_data_to_drive)
+    
     model.save_pretrained(args.output_dir)
-
-    # torch.save(args, args.output_dir + '/model_training_args.bin')
+    
     getattr(model, 'module', model).config.to_json_file(os.path.join(args.output_dir, CONFIG_NAME))
     tokenizer.save_vocabulary(args.output_dir)
   
