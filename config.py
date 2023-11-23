@@ -4,7 +4,7 @@ Configuration of our project.
 """
 import argparse
 
-DATA_PATH = '/Datasets'
+DATA_PATH = '/datasets'
 OUTPUT_PATH='/output'
 
 # data directory
