@@ -64,5 +64,5 @@ parser.add_argument(
     "--local_rank", type=int, default=-1, help="Local rank for distributed training (-1: not distributed)"
 )
 parser.add_argument(
-    "--prefix", type=str, default="", help="File prefix"
+    "--prefix", type=str, default="checkpoint", help="File prefix"
 )

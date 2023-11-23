@@ -6,27 +6,23 @@ import shutil
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 
-DRIVE_OUTPUT_PATH = '/Master_Thesis/Vietnamese/output/'
+DRIVE_OUTPUT_PATH = '/Master_Thesis/Vietnamese/output'
 
 def gg_auth():
   gauth = GoogleAuth()
-  # Try to load saved client credentials
-  gauth.LoadCredentialsFile("mycreds.txt")
   if gauth.credentials is None:
     # Authenticate if they're not there
-    gauth.LocalWebserverAuth()
+    gauth.LocalWebserverAuth() 
   elif gauth.access_token_expired:
     # Refresh them if expired
     gauth.Refresh()
   else:
     # Initialize the saved creds
     gauth.Authorize()
-  # Save the current credentials to a file
-  gauth.SaveCredentialsFile("mycreds.txt")
   return gauth
   
 
-def save_result_to_drive(epoch, path, score , checkpoint_file_path, prefix='checkpoint'):
+def save_result_to_drive(epoch, prefix, path, score, checkpoint_file_path):
   filename = f'{prefix}.epoch_{epoch}'
   result_folder = f'{path}/{filename}'
   os.mkdir(result_folder)

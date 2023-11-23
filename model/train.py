@@ -183,7 +183,7 @@ def train():
     epoch = engine.state.epoch
     score = engine.state.metrics
     checkpoint_file_path = f'{args.output_dir}/{CHECKPOINT_PREFIX}_epoch_{epoch}.pt'
-    save_result_to_drive(epoch, args.output_dir,score, checkpoint_file_path, prefix=args.prefix)
+    save_result_to_drive(epoch, args.prefix, args.output_dir,score, checkpoint_file_path)
   
   evaluator = Engine(inference)
     # Attach evaluation to trainer: we evaluate when we start the training and at the end of each epoch
