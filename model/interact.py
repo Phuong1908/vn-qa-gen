@@ -1,6 +1,7 @@
 import os
 import json
 import tqdm
+import random
 from shutil import move
 
 from argparse import ArgumentParser
@@ -57,7 +58,7 @@ def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_va
 
 def build_acsq_only_input_from_segments(data_point, tokenizer, with_eos=True):
     """A answer-clue-style-question-only version of build_input_from_segments()."""
-    sos, eos, paragraph, clue, answer, style, question = \
+    sos, eos, paragraph, clue, style, answer, question = \
         tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
 
     curr_ans = data_point['answer']
@@ -139,8 +140,8 @@ def sample_sequence(inst, tokenizer, model, args, para_cache):
       if i < args.min_length and prev.item() in special_tokens_ids:
           retry_time = 0
           while prev.item() in special_tokens_ids and retry_time < MAX_RETRY_TIMES:
-              prev = torch.multinomial(probs, num_samples=1)
-              retry_time += 1
+            prev = torch.multinomial(probs, num_samples=1)
+            retry_time += 1
 
       if prev.item() in special_tokens_ids:
           break
@@ -173,6 +174,12 @@ def run():
   parser.add_argument("--debug", action='store_true', help="If true we use debug mode")
   parser.add_argument("--debug_num", type=int, default=20, help="debug num")
   args = parser.parse_args()
+  
+  random.seed(args.seed)
+  torch.random.manual_seed(args.seed)
+  torch.cuda.manual_seed(args.seed)
+
+  print("Get pretrained model and tokenizer")
   
   tokenizer = BartphoTokenizer.from_pretrained(args.model_name_or_path)
   tokenizer.add_tokens(SPECIAL_TOKENS)
@@ -265,7 +272,7 @@ def run():
               'clue': tokenizer.decode(inst["clue"]),
               'clue_start': inst["clue_start"],
               'ques_type': inst['ques_type'],
-              'ques_type_text': inst['ques_type_text']
+              'ques_type_text': tokenizer.decode(inst["style"])
           })
       else:
         # add a new question to the list of QA pairs
@@ -282,7 +289,7 @@ def run():
                 'clue': tokenizer.decode(inst["clue"]),
                 'clue_start': inst["clue_start"],
                 'ques_type': inst['ques_type'],
-                'ques_type_text': inst['ques_type_text']
+                'ques_type_text': tokenizer.decode(inst["style"])
             }]
         })
         processed_para_indexs.append(para_index)
