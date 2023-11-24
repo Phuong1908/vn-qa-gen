@@ -6,8 +6,6 @@ import shutil
 from pydrive2.auth import GoogleAuth
 from pydrive2.drive import GoogleDrive
 
-DRIVE_OUTPUT_PATH = '/Master_Thesis/Vietnamese/output'
-
 def gg_auth():
   gauth = GoogleAuth()
   if gauth.credentials is None:
@@ -42,7 +40,7 @@ def save_result_to_drive(epoch, prefix, path, score, checkpoint_file_path):
   drive = GoogleDrive(gauth)
   
   file_path = f'{path}/{filename}.zip'
-  drive_file_path = f'{DRIVE_OUTPUT_PATH}/{filename}.zip'
+  drive_file_path = f'{filename}.zip'
 
   file_drive = drive.CreateFile({"title": drive_file_path}) 
   file_drive.SetContentFile(file_path)
