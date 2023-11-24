@@ -11,7 +11,7 @@ import torch
 
 from .dataloader import get_dataset
 from .train import SPECIAL_TOKENS
-from ..text_generation_metrics import compute_metrics_by_file
+from metrics.text_generation_metrics import compute_metrics_by_file
 import torch.nn.functional as F
 
 MAX_RETRY_TIMES = 10
@@ -182,7 +182,7 @@ def run():
   model.to(args.device)
   start = datetime.now()
   # data = get_positional_dataset_from_file(tokenizer, args.filename, filetype=args.data_type, debug=args.debug)
-  data = get_dataset(tokenizer, args.filecache, args.filename, filetype=args.data_type, debug=args.debug)
+  data = get_dataset(tokenizer, args.filecache, args.filename, debug=args.debug)
   print(("Time of get_positional_dataset_from_file: {}").format(datetime.now() - start))
 
   final_output_dict = {
@@ -265,7 +265,7 @@ def run():
               'clue': tokenizer.decode(inst["clue"]),
               'clue_start': inst["clue_start"],
               'ques_type': inst['ques_type'],
-              'is_impossible': False
+              'ques_type_text': inst['ques_type_text']
           })
       else:
         # add a new question to the list of QA pairs
@@ -282,7 +282,7 @@ def run():
                 'clue': tokenizer.decode(inst["clue"]),
                 'clue_start': inst["clue_start"],
                 'ques_type': inst['ques_type'],
-                'is_impossible': False
+                'ques_type_text': inst['ques_type_text']
             }]
         })
         processed_para_indexs.append(para_index)
