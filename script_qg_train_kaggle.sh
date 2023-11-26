@@ -1,5 +1,5 @@
 python3 QG_train.py \
-    --n_epochs 4 \
+    --n_epochs 5 \
     --eval_before_start \
     --local_rank 0 \
     --train_batch_size 2 \
@@ -8,5 +8,6 @@ python3 QG_train.py \
     --train_dataset_path /kaggle/working/vn-qa-gen/datasets/ViQuAD1.0/train_ViQuAD.json \
     --dev_dataset_path /kaggle/working/vn-qa-gen/datasets//ViQuAD1.0/dev_ViQuAD.json \
     --train_dataset_cache_path /kaggle/working/vn-qa-gen/datasets/QG/train_cache.pkl \
-    --dev_dataset_cache_path /kaggle/working/vn-qa-gen/datasets/QG/dev_cache.pkl
+    --dev_dataset_cache_path /kaggle/working/vn-qa-gen/datasets/QG/dev_cache.pkl \
+    --lr 0.00003
 
