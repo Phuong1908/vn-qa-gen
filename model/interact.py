@@ -15,7 +15,7 @@ from .train import SPECIAL_TOKENS
 from metrics.text_generation_metrics import compute_metrics_by_file
 import torch.nn.functional as F
 
-MAX_RETRY_TIMES = 10
+MAX_RETRY_TIMES = 100
 
 def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_value=-float('Inf')):
   
@@ -76,7 +76,7 @@ def build_acsq_only_input_from_segments(data_point, tokenizer, with_eos=True):
     sequence.extend([answer] + curr_ans)
 
     # <sos> paragraph <answer> answer <clue> clue
-    sequence.extend([clue] + curr_clue)
+    # sequence.extend([clue] + curr_clue)
 
     # <sos> paragraph <answer> answer <clue> clue <style> style
     sequence.extend([style] + curr_style)
@@ -224,7 +224,7 @@ def run():
 
             # Run a forward pass to generate the para caches
             r = model(input_ids)
-            para_cache["hidden_states"] = r[1]
+            para_cache["hidden_states"] = r[1] # past_key_value, or hidden state of para
         # Sample a question using the paragraph cache
         try:
             output = sample_sequence(inst, tokenizer, model, args, para_cache)

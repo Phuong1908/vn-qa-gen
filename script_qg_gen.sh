@@ -4,4 +4,5 @@ python3 QG_gen.py  \
     --filename /Users/phuongnguyen/study/vn-qa-gen/datasets/QG/train_cache_debug.pkl \
     --filecache /Users/phuongnguyen/study/vn-qa-gen/datasets/QG/train_cache_debug.pkl \
     --output_file /Users/phuongnguyen/study/vn-qa-gen/datasets/output/qa.qg.generated.json \
+    --top_k 2 \
     --min_length 5
