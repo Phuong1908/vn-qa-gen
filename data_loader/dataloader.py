@@ -81,7 +81,6 @@ def normalize_text(text):
 def build_sentence_level_for(example):
   sentences = sent_tokenize(example['paragraph'])
   tokens_passed = 0
-  # import pdb; pdb.set_trace()
   for sentence in sentences:
     if example['answer_start'] < tokens_passed + len(sentence): # current sentence contains answer
       # assert(example['answer_text'] in sentence)

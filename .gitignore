@@ -8,5 +8,5 @@ output/
 client_secrets.json
 mycreds.txt
 Datasets
-credentials.json
+credentials*
 settings.yaml

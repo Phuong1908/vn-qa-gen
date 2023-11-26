@@ -1,6 +1,7 @@
 import os
 import json
 import tqdm
+import random
 from shutil import move
 
 from argparse import ArgumentParser
@@ -11,10 +12,10 @@ import torch
 
 from .dataloader import get_dataset
 from .train import SPECIAL_TOKENS
-from ..text_generation_metrics import compute_metrics_by_file
+from metrics.text_generation_metrics import compute_metrics_by_file
 import torch.nn.functional as F
 
-MAX_RETRY_TIMES = 10
+MAX_RETRY_TIMES = 100
 
 def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_value=-float('Inf')):
   
@@ -57,7 +58,7 @@ def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_va
 
 def build_acsq_only_input_from_segments(data_point, tokenizer, with_eos=True):
     """A answer-clue-style-question-only version of build_input_from_segments()."""
-    sos, eos, paragraph, clue, answer, style, question = \
+    sos, eos, paragraph, clue, style, answer, question = \
         tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
 
     curr_ans = data_point['answer']
@@ -75,7 +76,7 @@ def build_acsq_only_input_from_segments(data_point, tokenizer, with_eos=True):
     sequence.extend([answer] + curr_ans)
 
     # <sos> paragraph <answer> answer <clue> clue
-    sequence.extend([clue] + curr_clue)
+    # sequence.extend([clue] + curr_clue)
 
     # <sos> paragraph <answer> answer <clue> clue <style> style
     sequence.extend([style] + curr_style)
@@ -139,8 +140,8 @@ def sample_sequence(inst, tokenizer, model, args, para_cache):
       if i < args.min_length and prev.item() in special_tokens_ids:
           retry_time = 0
           while prev.item() in special_tokens_ids and retry_time < MAX_RETRY_TIMES:
-              prev = torch.multinomial(probs, num_samples=1)
-              retry_time += 1
+            prev = torch.multinomial(probs, num_samples=1)
+            retry_time += 1
 
       if prev.item() in special_tokens_ids:
           break
@@ -174,6 +175,12 @@ def run():
   parser.add_argument("--debug_num", type=int, default=20, help="debug num")
   args = parser.parse_args()
   
+  random.seed(args.seed)
+  torch.random.manual_seed(args.seed)
+  torch.cuda.manual_seed(args.seed)
+
+  print("Get pretrained model and tokenizer")
+  
   tokenizer = BartphoTokenizer.from_pretrained(args.model_name_or_path)
   tokenizer.add_tokens(SPECIAL_TOKENS)
   model = AutoModelForSeq2SeqLM.from_pretrained(args.model_name_or_path)
@@ -182,7 +189,7 @@ def run():
   model.to(args.device)
   start = datetime.now()
   # data = get_positional_dataset_from_file(tokenizer, args.filename, filetype=args.data_type, debug=args.debug)
-  data = get_dataset(tokenizer, args.filecache, args.filename, filetype=args.data_type, debug=args.debug)
+  data = get_dataset(tokenizer, args.filecache, args.filename, debug=args.debug)
   print(("Time of get_positional_dataset_from_file: {}").format(datetime.now() - start))
 
   final_output_dict = {
@@ -217,7 +224,7 @@ def run():
 
             # Run a forward pass to generate the para caches
             r = model(input_ids)
-            para_cache["hidden_states"] = r[1]
+            para_cache["hidden_states"] = r[1] # past_key_value, or hidden state of para
         # Sample a question using the paragraph cache
         try:
             output = sample_sequence(inst, tokenizer, model, args, para_cache)
@@ -265,7 +272,7 @@ def run():
               'clue': tokenizer.decode(inst["clue"]),
               'clue_start': inst["clue_start"],
               'ques_type': inst['ques_type'],
-              'is_impossible': False
+              'ques_type_text': tokenizer.decode(inst["style"])
           })
       else:
         # add a new question to the list of QA pairs
@@ -282,7 +289,7 @@ def run():
                 'clue': tokenizer.decode(inst["clue"]),
                 'clue_start': inst["clue_start"],
                 'ques_type': inst['ques_type'],
-                'is_impossible': False
+                'ques_type_text': tokenizer.decode(inst["style"])
             }]
         })
         processed_para_indexs.append(para_index)
