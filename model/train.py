@@ -22,7 +22,7 @@ from ignite.contrib.handlers import ProgressBar, PiecewiseLinear
 
 
 SPECIAL_TOKENS = ['<sos>', '<eos>', '<paragraph>', '<clue>', '<style>', '<answer>', '<question>', '<pad>']
-MODEL_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
+MODEL_INPUTS = ["input_ids", "lm_labels"]
 CHECKPOINT_PREFIX = 'checkpoint'
 
 logger = logging.getLogger(__file__)
@@ -64,43 +64,32 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
   # <sos> paragraph
   sequence = [sos] + curr_para
   # This segmentation will encode positional information
-  token_types = [paragraph for i in range(len(curr_para) + 1)]
-  if clue_exist:
-      token_types[clue_start + 1:clue_end + 1] = [clue] * (clue_end - clue_start)
-  token_types[ans_start + 1:ans_end + 1] = [answer] * (ans_end - ans_start)
   lm_labels = [masked_value for _ in range(len(curr_para) + 1)]
 
   # <sos> paragraph <answer> answer
   sequence.extend([answer] + curr_ans)
-  token_types.extend([answer for _ in range(len(curr_ans) + 1)])
   lm_labels.extend([masked_value for _ in range(len(curr_ans) + 1)])
 
   # <sos> paragraph <answer> answer <clue> clue
   sequence.extend([clue] + curr_clue)
-  token_types.extend([clue for _ in range(len(curr_clue) + 1)])
   lm_labels.extend([masked_value for _ in range(len(curr_clue) + 1)])
 
   # <sos> paragraph <answer> answer <clue> clue <style> style
   sequence.extend([style] + curr_style)
-  token_types.extend([style for _ in range(len(curr_style) + 1)])
   lm_labels.extend([masked_value for _ in range(len(curr_style) + 1)])
 
   # <sos> paragraph <answer> answer <clue> clue <style> style <question> question [<eos>]
   if with_eos is True:
       sequence.extend([question] + curr_ques + [eos])
-      token_types.extend([question for _ in range(len(curr_ques) + 2)])
       lm_labels.extend([masked_value] + curr_ques + [eos])
   else:
       sequence.extend([question] + curr_ques)
-      token_types.extend([question for _ in range(len(curr_ques) + 1)])
       lm_labels.extend([masked_value] + curr_ques)
 
-  assert len(sequence) == len(token_types)
-  assert len(token_types) == len(lm_labels)
+  assert len(sequence) == len(lm_labels)
 
   instance = {
       "input_ids": sequence,
-      "token_type_ids": token_types,
       "lm_labels": lm_labels
   }
   return instance, sequence
