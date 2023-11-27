@@ -4,7 +4,7 @@ python3 QG_train.py \
     --lr 0.0001 \
     --local_rank 0 \
     --train_batch_size 2 \
-    --model_name_or_path vinai/bartpho-syllable \
+    --model_name_or_path /kaggle/working/vn-qa-gen/model_param \
     --output_dir /kaggle/working/vn-qa-gen/output/bartpho-syllable \
     --train_dataset_path /kaggle/working/vn-qa-gen/datasets/ViQuAD1.0/train_ViQuAD.json \
     --dev_dataset_path /kaggle/working/vn-qa-gen/datasets//ViQuAD1.0/dev_ViQuAD.json \
