@@ -49,15 +49,11 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
   curr_para = data_point['paragraph']
   curr_ans = data_point['answer']
   curr_ques = data_point['question']
-  ans_start = data_point['answer_position_tokenized'][0]
-  ans_end = data_point['answer_position_tokenized'][1]
   curr_style = data_point['style']
 
   clue_exist = (data_point['clue_start'] is not None)
   if clue_exist:
       curr_clue = data_point['clue']
-      clue_start = data_point['clue_position_tokenized'][0]
-      clue_end = data_point['clue_position_tokenized'][1]
   else:
       curr_clue = []
 
