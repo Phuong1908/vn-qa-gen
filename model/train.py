@@ -191,18 +191,11 @@ def train():
             return shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
 
     def upload_data_to_drive(engine):
-        try:
-            epoch = engine.state.epoch
-            score = engine.state.metrics
-            checkpoint_file_path = f'{args.output_dir}/{CHECKPOINT_PREFIX}_epoch_{epoch}.pt'
-            if os.path.exists(checkpoint_file_path):
-                save_result_to_drive(epoch, args.prefix,
-                                     args.output_dir, score, checkpoint_file_path)
-            else:
-                logger.warning(
-                    f"Checkpoint file {checkpoint_file_path} not found")
-        except Exception as e:
-            logger.error(f"Error during drive upload: {str(e)}")
+        epoch = engine.state.epoch
+        score = engine.state.metrics
+        checkpoint_file_path = f'{args.output_dir}/{CHECKPOINT_PREFIX}_epoch_{epoch}.pt'
+        save_result_to_drive(epoch, args.prefix,
+                             args.output_dir, score, checkpoint_file_path)
 
     # Create trainer and evaluator
     trainer = Engine(update)
@@ -240,7 +233,8 @@ def train():
         checkpoint_handler = ModelCheckpoint(
             args.output_dir,
             filename_prefix=CHECKPOINT_PREFIX,
-            filename_pattern='{filename_prefix}_{name}_{global_step}.{ext}',
+            filename_pattern='{filename_prefix}_epoch_{global_step}.{ext}',
+            global_step_transform=lambda e, _: e.state.epoch,
             n_saved=3,
             require_empty=False
         )
