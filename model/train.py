@@ -190,6 +190,13 @@ def train():
 
             return shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
 
+    def upload_data_to_drive(engine):
+        epoch = engine.state.epoch
+        score = engine.state.metrics
+        checkpoint_file_path = f'{args.output_dir}/{CHECKPOINT_PREFIX}_epoch_{epoch}.pt'
+        save_result_to_drive(epoch, args.prefix,
+                             args.output_dir, score, checkpoint_file_path)
+
     # Create trainer and evaluator
     trainer = Engine(update)
     evaluator = Engine(inference)
@@ -234,6 +241,7 @@ def train():
             checkpoint_handler,
             {'mymodel': getattr(model, 'module', model)}
         )
+        trainer.add_event_handler(Events.EPOCH_COMPLETED, upload_data_to_drive)
 
         # Save model and tokenizer
         model.save_pretrained(args.output_dir)
