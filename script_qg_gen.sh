@@ -4,5 +4,11 @@ python3 QG_gen.py  \
     --filename /Users/phuongnguyen/study/vn-qa-gen/datasets/QG/train_cache_debug.pkl \
     --filecache /Users/phuongnguyen/study/vn-qa-gen/datasets/QG/train_cache_debug.pkl \
     --output_file /Users/phuongnguyen/study/vn-qa-gen/datasets/output/qa.qg.generated.json \
+    --num_beams 5 \
+    --temperature 0.7 \
     --top_k 2 \
-    --min_length 5
+    --top_p 0.9 \
+    --repetition_penalty 1.2 \
+    --min_length 5 \
+    --max_length 50 \
+    --no_repeat_ngram_size 3

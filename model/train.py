@@ -19,8 +19,8 @@ from ignite.handlers import ModelCheckpoint
 from ignite.metrics import Loss, MetricsLambda, RunningAverage
 from ignite.contrib.handlers import ProgressBar, PiecewiseLinear
 
-SPECIAL_TOKENS = ['<sos>', '<eos>', '<paragraph>',
-                  '<clue>', '<style>', '<answer>', '<question>', '<pad>']
+SPECIAL_TOKENS = SPECIAL_TOKENS = [
+    '<paragraph>', '<clue>', '<style>', '<answer>', '<question>', '<pad>']
 MODEL_INPUTS = ["input_ids", "attention_mask",
                 "decoder_input_ids", "decoder_attention_mask", "labels"]
 CHECKPOINT_PREFIX = 'checkpoint'
@@ -47,9 +47,22 @@ def pad_dataset(dataset, dataset_name, padding=0):
 
 def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True):
     """Build encoder and decoder inputs"""
+    """ Encoder input:
+        `<s> .. paragraph text ..
+        <clue> .. clue span ..
+        <answer> .. answer span ..
+        <style> .. question style ..`
+        
+        Decoder input:
+            `<question> .. question span .. </s>`
+    """
     # Get special token ids
-    sos, eos, paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(
+    paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(
         SPECIAL_TOKENS[:-1])
+
+    # Get mBART's default special tokens
+    bos_token_id = tokenizer.bos_token_id  # <s>
+    eos_token_id = tokenizer.eos_token_id  # </s>
 
     # Prepare encoder inputs (source)
     encoder_inputs = []
@@ -67,17 +80,17 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
     encoder_inputs.extend([style] + data_point['style'])
 
     # Prepare decoder inputs (target)
-    decoder_inputs = [sos]  # Start with SOS token
+    decoder_inputs = [bos_token_id]  # Start with <s> token
     decoder_inputs.extend(data_point['question'])
     if with_eos:
-        decoder_inputs.append(eos)
+        decoder_inputs.append(eos_token_id)
 
     # Create attention masks
     encoder_attention_mask = [1] * len(encoder_inputs)
     decoder_attention_mask = [1] * len(decoder_inputs)
 
     # Labels are the decoder inputs shifted right
-    labels = decoder_inputs[1:]  # Remove SOS token
+    labels = decoder_inputs[1:]  # Remove BOS token
 
     instance = {
         "input_ids": encoder_inputs,
@@ -235,7 +248,7 @@ def train():
             filename_prefix=CHECKPOINT_PREFIX,
             filename_pattern='{filename_prefix}_epoch_{global_step}.{ext}',
             global_step_transform=lambda e, _: e.state.epoch,
-            n_saved=3,
+            n_saved=None,
             require_empty=False
         )
         trainer.add_event_handler(

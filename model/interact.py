@@ -14,49 +14,48 @@ from metrics.text_generation_metrics import compute_metrics_by_file
 
 
 def build_encoder_input(inst, tokenizer):
-    """Build encoder input for BartPho"""
-    sos, eos, paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(
+    """Build encoder input matching BartPho training format"""
+    paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(
         SPECIAL_TOKENS[:-1])
 
-    # Build input sequence
-    input_ids = []
+    # Build encoder inputs exactly as in training
+    encoder_inputs = []
 
     # Add paragraph
-    input_ids.extend([paragraph] + inst['paragraph'])
+    encoder_inputs.extend([paragraph] + inst['paragraph'])
 
     # Add answer
-    input_ids.extend([answer] + inst['answer'])
+    encoder_inputs.extend([answer] + inst['answer'])
 
     # Add clue if exists
     if inst['clue_start'] is not None:
-        input_ids.extend([clue] + inst['clue'])
+        encoder_inputs.extend([clue] + inst['clue'])
 
     # Add style
-    input_ids.extend([style] + inst['style'])
+    encoder_inputs.extend([style] + inst['style'])
 
     # Create attention mask
-    attention_mask = [1] * len(input_ids)
+    encoder_attention_mask = [1] * len(encoder_inputs)
 
     return {
-        "input_ids": input_ids,
-        "attention_mask": attention_mask
+        "input_ids": encoder_inputs,
+        "attention_mask": encoder_attention_mask
     }
 
 
 def generate_question(model, inst, tokenizer, args):
-    """Generate question for a single input"""
-    # Store the original question before generation
-    inst['original_question'] = inst.get(
-        'question', [])  # Save original question
+    """Generate question using BartPho training format"""
+    inst['original_question'] = inst.get('question', [])
 
-    # Rest of the function remains the same
+    # Get encoder inputs
     encoder_input = build_encoder_input(inst, tokenizer)
     input_ids = torch.tensor([encoder_input["input_ids"]], device=args.device)
     attention_mask = torch.tensor(
         [encoder_input["attention_mask"]], device=args.device)
 
-    decoder_input_ids = torch.tensor(
-        [[tokenizer.bos_token_id]], device=args.device)
+    # Initialize decoder with correct decoder_start_token_id
+    # Use decoder_start_token_id=2
+    decoder_input_ids = torch.tensor([[2]], device=args.device)
 
     output_sequence = model.generate(
         input_ids=input_ids,
@@ -64,10 +63,16 @@ def generate_question(model, inst, tokenizer, args):
         decoder_input_ids=decoder_input_ids,
         max_length=args.max_length,
         min_length=args.min_length,
-        top_k=args.top_k,
-        do_sample=True,
-        pad_token_id=tokenizer.pad_token_id,
-        eos_token_id=tokenizer.eos_token_id,
+        num_beams=5,
+        do_sample=False,  # Disable sampling for more stable output
+        top_k=50,
+        temperature=1.0,
+        repetition_penalty=1.5,
+        length_penalty=1.0,
+        no_repeat_ngram_size=3,
+        pad_token_id=1,  # Use correct pad_token_id
+        eos_token_id=2,  # Use correct eos_token_id
+        forced_eos_token_id=2,  # Force correct EOS token
         early_stopping=True
     )
 
@@ -76,6 +81,7 @@ def generate_question(model, inst, tokenizer, args):
 
 def run():
     parser = ArgumentParser()
+    # Basic parameters
     parser.add_argument("--model_type", type=str,
                         default="vinai/bartpho-syllable", help="Model type")
     parser.add_argument("--model_name_or_path", type=str,
@@ -86,27 +92,50 @@ def run():
                         required=True, help="Cache file")
     parser.add_argument("--output_file", type=str,
                         required=True, help="Output file")
-    parser.add_argument("--top_k", type=int, default=2, help="Top-k filtering")
+
+    # Generation parameters
+    parser.add_argument("--no_sample", action='store_true',
+                        help="Use greedy decoding instead of sampling")
+    parser.add_argument("--num_beams", type=int, default=5,
+                        help="Number of beams for beam search")
+    parser.add_argument("--temperature", type=float, default=0.7,
+                        help="Sampling temperature")
+    parser.add_argument("--top_k", type=int, default=2,
+                        help="Top-k filtering")
+    parser.add_argument("--top_p", type=float, default=0.9,
+                        help="Top-p (nucleus) filtering")
+    parser.add_argument("--repetition_penalty", type=float, default=1.2,
+                        help="Repetition penalty")
+    parser.add_argument("--length_penalty", type=float, default=1.0,
+                        help="Length penalty")
+    parser.add_argument("--no_repeat_ngram_size", type=int, default=3,
+                        help="Size of n-grams to prevent repetition")
     parser.add_argument("--min_length", type=int, default=5,
                         help="Minimum length of output")
     parser.add_argument("--max_length", type=int, default=50,
                         help="Maximum length of output")
-    parser.add_argument(
-        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device")
-    parser.add_argument("--debug", action='store_true', help="Debug mode")
-    parser.add_argument("--save_freq", type=int,
-                        default=2000, help="Save frequency")
+
+    # Other parameters
+    parser.add_argument("--device", type=str,
+                        default="cuda" if torch.cuda.is_available() else "cpu",
+                        help="Device")
+    parser.add_argument("--debug", action='store_true',
+                        help="Debug mode")
+    parser.add_argument("--save_freq", type=int, default=2000,
+                        help="Save frequency")
     args = parser.parse_args()
 
     # Set random seed for reproducibility
     random.seed(42)
     torch.manual_seed(42)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(42)
 
     # Initialize model and tokenizer
     print("Initializing model and tokenizer")
-    tokenizer = BartphoTokenizer.from_pretrained(args.model_type)
-    tokenizer.add_tokens(SPECIAL_TOKENS)
-    model = AutoModelForSeq2SeqLM.from_pretrained(args.model_name_or_path)
+    tokenizer = BartphoTokenizer.from_pretrained(args.model_name_or_path)
+    model = AutoModelForSeq2SeqLM.from_pretrained(
+        args.model_name_or_path)
     model.resize_token_embeddings(len(tokenizer))
     model.to(args.device)
     model.eval()
@@ -138,10 +167,10 @@ def run():
 
             # Decode outputs
             original_paragraph = tokenizer.decode(inst['paragraph'])
-            generated_question_text = tokenizer.decode(
-                generated_question, skip_special_tokens=True)
             original_answer = tokenizer.decode(
                 inst['answer'], skip_special_tokens=True)
+            generated_question_text = tokenizer.decode(
+                generated_question, skip_special_tokens=True)
             original_question_text = tokenizer.decode(
                 original_question_ids, skip_special_tokens=True)
             para_index = inst['para_id']
@@ -157,16 +186,12 @@ def run():
                 else:
                     continue
 
-            # Add to output dictionary
-            original_question = tokenizer.decode(
-                inst.get('original_question', []), skip_special_tokens=True)
-
             if para_index in processed_para_indexs:
                 output_para_index = para_index2output_dict_paras_index[para_index]
                 final_output_dict["data"][0]["paragraphs"][output_para_index]['qas'].append({
                     'id': f'question_{question_number}',
                     'question': generated_question_text,
-                    'original_question': original_question_text,  # Now properly included
+                    'original_question': original_question_text,
                     'answers': [{
                         'text': original_answer,
                         'answer_start': original_ans_position,
@@ -182,7 +207,7 @@ def run():
                     'qas': [{
                         'id': f'question_{question_number}',
                         'question': generated_question_text,
-                        'original_question': original_question_text,  # Now properly included
+                        'original_question': original_question_text,
                         'answers': [{
                             'text': original_answer,
                             'answer_start': original_ans_position,
