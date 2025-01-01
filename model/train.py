@@ -29,58 +29,53 @@ logger = logging.getLogger(__file__)
 
 
 def pad_dataset(dataset, dataset_name, padding=0):
-    """Pad the dataset with appropriate padding for encoder and decoder inputs"""
     max_encoder_l = max(len(x) for x in dataset["input_ids"])
     max_decoder_l = max(len(x) for x in dataset["decoder_input_ids"])
 
     for name in MODEL_INPUTS:
-        if name in ["input_ids", "attention_mask"]:
-            # Pad encoder inputs
-            dataset[name] = [x + [padding if name == "input_ids" else 0] * (max_encoder_l - len(x))
+        if name in ["input_ids"]:
+            dataset[name] = [x + [padding] * (max_encoder_l - len(x))
+                             for x in dataset[name]]
+        elif name == "attention_mask":
+            dataset[name] = [x + [0.0] * (max_encoder_l - len(x))
                              for x in dataset[name]]
         elif name in ["decoder_input_ids", "decoder_attention_mask", "labels"]:
-            # Pad decoder inputs
-            dataset[name] = [x + [padding if name == "decoder_input_ids" else 0 if name == "decoder_attention_mask" else -100] * (max_decoder_l - len(x))
+            padding_value = padding if name == "decoder_input_ids" else 0 if name == "decoder_attention_mask" else -100
+            dataset[name] = [x + [padding_value] * (max_decoder_l - len(x))
                              for x in dataset[name]]
     return dataset
 
 
 def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True):
     """Build encoder and decoder inputs"""
-    """ Encoder input:
-        `<s> .. paragraph text ..
-        <clue> .. clue span ..
-        <answer> .. answer span ..
-        <style> .. question style ..`
-        
-        Decoder input:
-            `<question> .. question span .. </s>`
-    """
-    # Get special token ids
     paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(
         SPECIAL_TOKENS[:-1])
-
-    # Get mBART's default special tokens
-    bos_token_id = tokenizer.bos_token_id  # <s>
-    eos_token_id = tokenizer.eos_token_id  # </s>
+    bos_token_id = tokenizer.bos_token_id
+    eos_token_id = tokenizer.eos_token_id
 
     # Prepare encoder inputs (source)
     encoder_inputs = []
-    # Add paragraph
-    encoder_inputs.extend([paragraph] + data_point['paragraph'])
 
-    # Add answer
-    encoder_inputs.extend([answer] + data_point['answer'])
+    # Add paragraph with position markers
+    paragraph_tokens = [paragraph]
+    encoder_inputs.extend(paragraph_tokens)
+    encoder_inputs.extend(data_point['paragraph'])
+
+    # Add answer with position marker
+    answer_tokens = [answer] + data_point['answer']
+    encoder_inputs.extend(answer_tokens)
 
     # Add clue if exists
     if data_point['clue_start'] is not None:
-        encoder_inputs.extend([clue] + data_point['clue'])
+        clue_tokens = [clue] + data_point['clue']
+        encoder_inputs.extend(clue_tokens)
 
     # Add style
-    encoder_inputs.extend([style] + data_point['style'])
+    style_tokens = [style] + data_point['style']
+    encoder_inputs.extend(style_tokens)
 
     # Prepare decoder inputs (target)
-    decoder_inputs = [bos_token_id]  # Start with <s> token
+    decoder_inputs = [bos_token_id]
     decoder_inputs.extend(data_point['question'])
     if with_eos:
         decoder_inputs.append(eos_token_id)
@@ -90,7 +85,7 @@ def build_input_from_segments(data_point, tokenizer, dataset_name, with_eos=True
     decoder_attention_mask = [1] * len(decoder_inputs)
 
     # Labels are the decoder inputs shifted right
-    labels = decoder_inputs[1:]  # Remove BOS token
+    labels = decoder_inputs[1:]
 
     instance = {
         "input_ids": encoder_inputs,
@@ -182,7 +177,6 @@ def train():
         optimizer.zero_grad()
         return loss.item()
 
-    # Define evaluation function
     def inference(engine, batch):
         model.eval()
         with torch.no_grad():
