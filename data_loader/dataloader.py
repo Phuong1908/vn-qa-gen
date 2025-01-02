@@ -38,27 +38,37 @@ def get_raw_examples(filename, level='paragraph', debug=False, debug_length=20):
     articles = data['data']
     num_examples = 0
     raw_examples = []
+
     for article in tqdm(articles):
         paragraphs = article['paragraphs']
         for paragraph in paragraphs:
             paragraph_content = paragraph['context']
             qa_pairs = paragraph['qas']
+
             for qa_pair in qa_pairs:
                 question = qa_pair['question']
                 answers = qa_pair['answers']
+
                 for answer in answers:
-                    example = {
+                    # First get the relevant sentence
+                    sentence_example = {
                         'paragraph': paragraph_content,
                         'question': question,
                         'answer_text': answer['text'],
                         'answer_start': answer['answer_start']
                     }
+
+                    # Extract sentence containing answer
                     if level == 'sentence':
-                        example = build_sentence_level_for(example)
-                    raw_examples.append(example)
+                        sentence_example = build_sentence_level_for(
+                            sentence_example)
+
+                    raw_examples.append(sentence_example)
                     num_examples += 1
+
                     if debug and num_examples >= debug_length:
                         break
+
     print(("Time of get raw examples: {}").format(datetime.now() - start))
     print("Number of raw examples: ", len(raw_examples))
     return raw_examples
@@ -81,21 +91,28 @@ def normalize_text(text):
 
 
 def build_sentence_level_for(example):
+    """Extract sentence containing answer and adjust positions"""
     sentences = sent_tokenize(example['paragraph'])
     tokens_passed = 0
+
     for sentence in sentences:
-        # current sentence contains answer
         if example['answer_start'] < tokens_passed + len(sentence):
-            # assert(example['answer_text'] in sentence)
             if example['answer_text'] in sentence:
-                # replace examples's paragraph by the current sentence
-                example['paragrah'] = sentence
-            # re-calculate the answer_start
-                new_start_token = example['answer_start'] - tokens_passed
-                example['answer_start'] = new_start_token
-                break
-        else:
-            tokens_passed += len(sentence) + 1  # one more for space
+                # Store original position for later adjustment
+                original_start = example['answer_start']
+
+                # Update example with sentence
+                example['paragraph'] = sentence
+                example['answer_start'] = original_start - tokens_passed
+
+                # Store sentence boundaries for chunk extraction
+                example['sentence_start'] = tokens_passed
+                example['sentence_end'] = tokens_passed + len(sentence)
+
+                return example
+
+        tokens_passed += len(sentence) + 1
+
     return example
 
 
