@@ -10,10 +10,10 @@ from underthesea import sent_tokenize, word_tokenize
 # question type
 
 INFO_QUESTION_TYPES = [
-    "Who", "Where", "When", "Why", "What", "How"]
+    "Who", "Where", "When", "Why", "How many", "How", "What"]
 Q_TYPE2ID_DICT = {
-    "What": 0, "Who": 1, "How": 2,
-    "Where": 3, "When": 4, "Why": 5, "Other": 7}
+    "Who": 0, "Where": 1, "When": 2,
+    "Why": 3, "How many": 4, "How": 5, "What": 6, "Other": 7}
 INFO_QUESTION_TYPES_MAPPING = {
     "Who": ["ai", "người nào"],
     "Where": ["ở đâu", "nơi nào", "đâu"],

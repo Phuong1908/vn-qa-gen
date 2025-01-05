@@ -9,13 +9,14 @@ QUESTION_TYPES = [
 ]
 
 QUESTION_PATTERNS = {
-    "WHO": ["ai", "người nào", "ai là"],
-    "WHERE": ["ở đâu", "nơi nào", "đâu"],
-    "WHEN": ["khi nào", "lúc nào", "thời gian nào", "năm nào"],
-    "WHY": ["tại sao", "vì sao", "do đâu"],
-    "WHAT": ["là gì", "cái gì", "gì", "những gì"],
-    "HOW": ["thế nào", "như thế nào", "bằng cách nào", "làm sao"],
-    "OTHER": []
+    "Who": ["ai", "người nào"],
+    "Where": ["ở đâu", "nơi nào", "đâu"],
+    "When": ["khi nào", "lúc nào", "thời gian nào", "thời điểm nào"],
+    "Why": ["tại sao", "vì sao", "do đâu"],
+    "How many": ["bao nhiêu"],
+    "How": ["thế nào", "như thế nào"],
+    "What": ["là gì", "gì", "nào"],
+    "OTHER": ["other"]
 }
 
 # Vietnamese specific configurations
