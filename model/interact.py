@@ -14,7 +14,6 @@ from metrics.text_generation_metrics import compute_metrics_by_file
 
 
 def build_encoder_input(inst, tokenizer):
-    """Build encoder input matching BartPho training format"""
     paragraph, clue, style, answer, question = tokenizer.convert_tokens_to_ids(
         SPECIAL_TOKENS[:-1])
 
@@ -43,26 +42,26 @@ def build_encoder_input(inst, tokenizer):
     }
 
 
-def generate_question(model, inst, tokenizer, args):
+def generate_question(model, inst, tokenizer, device):
     """Generate question using BartPho training format"""
     inst['original_question'] = inst.get('question', [])
 
     # Get encoder inputs
     encoder_input = build_encoder_input(inst, tokenizer)
-    input_ids = torch.tensor([encoder_input["input_ids"]], device=args.device)
+    input_ids = torch.tensor([encoder_input["input_ids"]], device=device)
     attention_mask = torch.tensor(
-        [encoder_input["attention_mask"]], device=args.device)
+        [encoder_input["attention_mask"]], device=device)
 
     # Initialize decoder with correct decoder_start_token_id
     # Use decoder_start_token_id=2
-    decoder_input_ids = torch.tensor([[2]], device=args.device)
+    decoder_input_ids = torch.tensor([[2]], device=device)
 
     output_sequence = model.generate(
         input_ids=input_ids,
         attention_mask=attention_mask,
         decoder_input_ids=decoder_input_ids,
-        max_length=args.max_length,
-        min_length=args.min_length,
+        max_length=50,
+        min_length=5,
         num_beams=5,
         do_sample=False,  # Disable sampling for more stable output
         top_k=50,

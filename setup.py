@@ -13,7 +13,8 @@ setup(
         'sentencepiece>=0.1.96',
         'pytorch-ignite>=0.4.0',
         'gdown>=4.7.1',
-        'PyDrive2>=1.14.0'
+        'PyDrive2>=1.14.0',
+        "gradio==4.43.0",
     ],
     python_requires='>=3.7',  # Specify minimum Python version
     classifiers=[
@@ -28,7 +29,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'vn-qa-gen=vn_qa_gen.main:main',  # If you want to add command line tools
+            'qa-webapp=webapp.app:main',
         ],
     }
 )

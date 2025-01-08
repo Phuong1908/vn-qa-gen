@@ -5,6 +5,7 @@ P(a, c, s) = p(a) * p(c|a) * p(s|c, a)
            = p(a|a_tag, a_length) * p(c|c_tag, dep_dist) * p(s|a_tag)
 """
 import copy
+from tqdm import tqdm
 import math
 import numpy as np
 from collections import Counter
@@ -72,8 +73,6 @@ def get_chunks(sentence: str):
     # Get NER tags
     ner_tags = ner(sentence)
     ner_dict = {}
-
-    print("NER tags:", ner_tags)
 
     # Handle NER tags - each tag is (word, pos, chunk, ner)
     current_entity = []
@@ -166,35 +165,69 @@ def select_answers(
     """Select potential answers from sentence"""
     # Get chunks
     chunklist, _, tokens = get_chunks(sentence)
-    token2idx, idx2token = get_token2char(tokens, sentence)
+    print(f"\nFound chunks: {len(chunklist)}")
 
-    # Calculate answer probabilities
-    chunk_ids = list(range(len(chunklist)))
-    a_probs = []
+    # Filter valid chunks
+    valid_chunks = []
+    valid_probs = []
 
     for chunk in chunklist:
+        chunk_text = " ".join(chunk[2])
+        print(f"Evaluating chunk: {chunk_text} ({chunk[1]}-{chunk[0]})")
+
+        # Skip invalid chunks
+        if chunk_text.lower() in NOT_BEGIN_TOKENS_FOR_ANSWER_CLUE:
+            print(f"Skipping function word: {chunk_text}")
+            continue
+
+        # Skip punctuation and function word types
+        if chunk[1] in ['CH', 'C', 'E', 'R', 'T']:
+            print(f"Skipping punctuation/conjunction: {chunk_text}")
+            continue
+
+        # Calculate base score based on chunk type
+        base_score = 1.0
+
+        # Prefer named entities
+        if chunk[0] != "UNK":
+            base_score *= 3.0
+            print(f"Named entity bonus for: {chunk_text}")
+
+        # Prefer nouns and noun phrases
+        if chunk[1] in ['N', 'Np']:
+            base_score *= 2.0
+            print(f"Noun bonus for: {chunk_text}")
+
+        # Prefer longer meaningful phrases
+        if len(chunk[2]) >= 2:
+            base_score *= 1.5
+            print(f"Length bonus for: {chunk_text}")
+
+        # Get probability from learned distribution
         chunk_pos_tag = chunk[1]
         chunk_ner_tag = chunk[0]
         a_tag = f"{chunk_pos_tag}-{chunk_ner_tag}"
         a_length = len(chunk[2])
+        a_length_bin = val2bin(a_length, answer_length_min_val,
+                               answer_length_max_val, answer_length_bin_width)
 
-        # Get length bin
-        a_length_bin = val2bin(
-            a_length,
-            answer_length_min_val,
-            answer_length_max_val,
-            answer_length_bin_width,
-        )
-
-        # Get probability
         a_condition = f"{a_tag}_{a_length_bin}"
-        if (
-            a_condition in sample_probs["a"]
-            and chunk[2][0].lower() not in NOT_BEGIN_TOKENS_FOR_ANSWER_CLUE
-        ):
-            a_probs.append(sample_probs["a"][a_condition])
+        if a_condition in sample_probs["a"]:
+            prob = sample_probs["a"][a_condition] * base_score
         else:
-            a_probs.append(1)
+            prob = base_score
+
+        print(f"Adding valid chunk: {chunk_text} with score {prob}")
+        valid_chunks.append(chunk)
+        valid_probs.append(prob)
+
+    if not valid_chunks:
+        print("No valid chunks found!")
+        return [], chunklist, None, tokens
+
+    # Normalize probabilities
+    valid_probs = np.array(valid_probs)
+    valid_probs = valid_probs / valid_probs.sum()
 
     # Sample answers
     sampled_answers = []
@@ -204,19 +237,17 @@ def select_answers(
         if len(sampled_answers) >= num_sample_answer:
             break
 
-        # Sample chunk
-        chunk_id = np.random.choice(
-            chunk_ids, p=np.array(a_probs) / sum(a_probs))
+        chunk_id = np.random.choice(len(valid_chunks), p=valid_probs)
         if chunk_id in sampled_ids:
             continue
 
-        sampled_ids.add(chunk_id)
-        chunk = chunklist[chunk_id]
-
+        chunk = valid_chunks[chunk_id]
         try:
             # Get character positions
             char_start, char_end = str_find(sentence, chunk[2])
             if char_start < 0:
+                print(
+                    f"Could not find position for chunk: {' '.join(chunk[2])}")
                 continue
 
             # Create BIO tags
@@ -226,20 +257,24 @@ def select_answers(
 
             sampled_answers.append(
                 (
-                    " ".join(chunk[2]),  # answer text
-                    char_start,  # character start
-                    char_end,  # character end
-                    chunk[3],  # token start
-                    chunk[4],  # token end
-                    bio_ids,  # BIO tags
-                    chunk[1],  # POS tag
-                    chunk[0],  # NER tag
+                    " ".join(chunk[2]),
+                    char_start,
+                    char_end,
+                    chunk[3],
+                    chunk[4],
+                    bio_ids,
+                    chunk[1],
+                    chunk[0],
                 )
             )
+            sampled_ids.add(chunk_id)
+            print(f"Added answer: {' '.join(chunk[2])}")
 
-        except:
+        except Exception as e:
+            print(f"Error processing chunk: {str(e)}")
             continue
 
+    print(f"Selected {len(sampled_answers)} answers")
     return sampled_answers, chunklist, None, tokens
 
 
@@ -344,31 +379,33 @@ def select_question_types(
     num_sample_style: int = 2,
     max_sample_times: int = 20,
 ) -> List[str]:
-    """Select appropriate question types for Vietnamese answer"""
-    (answer_text, _, _, _, _, _, answer_pos_tag, answer_ner_tag) = selected_answer
+    """Select question types based on P(s|a_tag) from training data"""
+    answer_text, _, _, _, _, _, answer_pos_tag, answer_ner_tag = selected_answer
     a_tag = f"{answer_pos_tag}-{answer_ner_tag}"
 
-    # Calculate style probabilities
-    s_probs = []
+    # Get style probabilities for this answer tag
+    style_probs = []
     for style in QUESTION_TYPES:
         s_condition = f"{style}_{a_tag}"
         if s_condition in sample_probs["s|c,a"]:
-            s_probs.append(sample_probs["s|c,a"][s_condition])
+            # Use learned probability
+            style_probs.append(sample_probs["s|c,a"][s_condition])
         else:
-            # Default probabilities based on answer properties
+            # Fallback probabilities based on answer properties
             if answer_ner_tag == "PER" and style == "WHO":
-                s_probs.append(2.0)
+                style_probs.append(0.6)
             elif answer_ner_tag == "LOC" and style == "WHERE":
-                s_probs.append(2.0)
+                style_probs.append(0.6)
             elif answer_ner_tag == "TIME" and style == "WHEN":
-                s_probs.append(2.0)
+                style_probs.append(0.6)
             elif answer_ner_tag == "NUM" and style == "HOW":
-                s_probs.append(2.0)
+                style_probs.append(0.6)
             else:
-                s_probs.append(1.0)
+                style_probs.append(0.1)  # Small probability for other styles
 
     # Normalize probabilities
-    s_probs = np.array(s_probs) / sum(s_probs)
+    style_probs = np.array(style_probs)
+    style_probs = style_probs / style_probs.sum()
 
     # Sample styles
     sampled_styles = []
@@ -376,7 +413,7 @@ def select_question_types(
         if len(sampled_styles) >= num_sample_style:
             break
 
-        style = np.random.choice(QUESTION_TYPES, p=s_probs)
+        style = np.random.choice(QUESTION_TYPES, p=style_probs)
         if style not in sampled_styles:
             sampled_styles.append(style)
 
@@ -387,7 +424,7 @@ def get_dataset_info(examples: List[Dict], sent_limit: int = 100) -> List[Dict]:
     """Extract dataset information from Vietnamese QA examples"""
     examples_with_info = []
 
-    for e in examples:
+    for e in tqdm(examples, desc="Extracting dataset info", unit="example"):
         try:
             sentence = e["ans_sent"]
             question = e["question"]
@@ -435,27 +472,74 @@ def get_dataset_info(examples: List[Dict], sent_limit: int = 100) -> List[Dict]:
     return examples_with_info
 
 
-def get_sample_probs(
-    examples: List[Dict], answer_length_bins: int = 10, clue_distance_bins: int = 10
-) -> Dict:
-    """Calculate sampling probabilities from Vietnamese dataset"""
+def get_sample_probs(examples: List[Dict],
+                     answer_length_bins: int = 10,
+                     clue_distance_bins: int = 10) -> Dict:
+    """Calculate sampling probabilities from dataset"""
     examples_with_info = get_dataset_info(examples)
 
     # Initialize counters
     answer_probs = Counter()  # P(a|tag,length)
-    clue_probs = Counter()  # P(c|tag,distance)
-    style_probs = Counter()  # P(s|answer_tag)
+    clue_probs = Counter()    # P(c|tag,distance)
+    style_probs = Counter()   # P(s|a_tag)
 
-    for e in examples_with_info:
-        # Answer probabilities
-        a_tag = e["answer_tag"]
-        a_len_bin = val2bin(e["answer_length"], 0, 30, 30 / answer_length_bins)
-        answer_probs[f"{a_tag}_{a_len_bin}"] += 1
+    print("Processing examples for probability calculation...")
+    for e in tqdm(examples_with_info):
+        try:
+            # Get sentence info
+            sentence = e["sentence"]
+            chunklist, _, tokens = get_chunks(sentence)
 
-        # Question type probabilities
-        style_probs[f"{e['question_type']}_{a_tag}"] += 1
+            # Get answer info
+            answer_text = e["answer_text"]
+            answer_tag = e["answer_tag"]
+            answer_length = e["answer_length"]
 
-    return {"a": answer_probs, "c|a": clue_probs, "s|c,a": style_probs}
+            # Calculate answer probability
+            length_bin = val2bin(answer_length, 0, 30, 30/answer_length_bins)
+            answer_probs[f"{answer_tag}_{length_bin}"] += 1
+
+            # Calculate style probability
+            # This directly captures P(s|a_tag) from training data
+            style_probs[f"{e['question_type']}_{answer_tag}"] += 1
+
+            # Calculate clue probabilities
+            # ... (rest of the clue probability calculation)
+
+        except Exception as e:
+            print(f"Error processing example: {str(e)}")
+            continue
+
+    # Normalize probabilities
+    def normalize_counter(counter):
+        # Group by answer tag for style probabilities
+        if counter == style_probs:
+            normalized = {}
+            # Group by answer tag
+            tag_groups = {}
+            for key, value in counter.items():
+                style, tag = key.split('_', 1)
+                if tag not in tag_groups:
+                    tag_groups[tag] = {}
+                tag_groups[tag][style] = value
+
+            # Normalize within each tag group
+            for tag, style_counts in tag_groups.items():
+                total = sum(style_counts.values())
+                if total > 0:
+                    for style, count in style_counts.items():
+                        normalized[f"{style}_{tag}"] = count / total
+            return normalized
+        else:
+            # Normal normalization for other counters
+            total = sum(counter.values())
+            return {k: v/total if total > 0 else 0 for k, v in counter.items()}
+
+    return {
+        "a": normalize_counter(answer_probs),
+        "c|a": normalize_counter(clue_probs),
+        "s|c,a": normalize_counter(style_probs)
+    }
 
 
 def augment_qg_data(
@@ -473,7 +557,7 @@ def augment_qg_data(
     max_sample_times: int = 20,
 ) -> Dict:
     """Generate augmented QA data for Vietnamese sentence"""
-    sampled_infos = []
+    print(f"\nProcessing sentence: {sentence}")  # Debug print
 
     # Sample answers
     sampled_answers, chunklist, _, tokens = select_answers(
@@ -485,6 +569,17 @@ def augment_qg_data(
         answer_length_max_val,
         max_sample_times,
     )
+
+    print(f"Found {len(chunklist)} chunks")  # Debug print
+    for chunk in chunklist:
+        # Debug print
+        print(f"Chunk: {' '.join(chunk[2])} ({chunk[1]}-{chunk[0]})")
+
+    print(f"Selected {len(sampled_answers)} answers")  # Debug print
+    for ans in sampled_answers:
+        print(f"Answer: {ans[0]} ({ans[6]}-{ans[7]})")  # Debug print
+
+    sampled_infos = []
 
     # For each answer, sample clues and styles
     for ans in sampled_answers:
@@ -500,6 +595,7 @@ def augment_qg_data(
         styles = select_question_types(
             sample_probs, ans, num_sample_style, max_sample_times
         )
+        print(f"Selected styles for {ans[0]}: {styles}")  # Debug print
 
         # Sample clues
         clues = select_clues(
@@ -513,10 +609,14 @@ def augment_qg_data(
             clue_dep_dist_max_val,
             max_sample_times,
         )
+        # Debug print
+        print(
+            f"Selected clues for {ans[0]}: {[c['clue_text'] for c in clues]}")
 
         sampled_infos.append(
             {"answer": answer_info, "styles": styles, "clues": clues})
 
+    print(f"Generated {len(sampled_infos)} samples")  # Debug print
     return {"context": sentence, "samples": sampled_infos}
 
 

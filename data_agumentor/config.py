@@ -9,13 +9,12 @@ QUESTION_TYPES = [
 ]
 
 QUESTION_PATTERNS = {
-    "Who": ["ai", "người nào"],
-    "Where": ["ở đâu", "nơi nào", "đâu"],
-    "When": ["khi nào", "lúc nào", "thời gian nào", "thời điểm nào"],
-    "Why": ["tại sao", "vì sao", "do đâu"],
-    "How many": ["bao nhiêu"],
-    "How": ["thế nào", "như thế nào"],
-    "What": ["là gì", "gì", "nào"],
+    "WHO": ["ai", "người nào"],
+    "WHERE": ["ở đâu", "nơi nào", "đâu"],
+    "WHEN": ["khi nào", "lúc nào", "thời gian nào", "thời điểm nào"],
+    "WHY": ["tại sao", "vì sao", "do đâu"],
+    "HOW": ["thế nào", "như thế nào"],
+    "WHAT": ["là gì", "gì", "nào"],
     "OTHER": ["other"]
 }
 
