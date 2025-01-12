@@ -7,11 +7,10 @@ from data_agumentor.data_augmentor import (
 from data_agumentor.config import QUESTION_PATTERNS
 from typing import Dict
 import torch
-import pickle
-import os
 import logging
 import numpy as np
 from data_agumentor.data_augmentor import load_sample_probs
+
 
 # Configure logging
 logging.basicConfig(
@@ -103,7 +102,7 @@ class QAGenerationService:
                 sample_probs=self.sample_probs,
                 num_sample_answer=3,
                 num_sample_clue=2,
-                num_sample_style=2
+                num_sample_style=2,
             )
 
             logger.info(

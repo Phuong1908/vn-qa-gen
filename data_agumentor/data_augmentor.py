@@ -13,18 +13,22 @@ from tqdm import tqdm
 import math
 import numpy as np
 from collections import Counter
-import underthesea
-from underthesea import ner, pos_tag, chunk, word_tokenize
 from typing import List, Dict, Tuple
 from .vncorenlp_wrapper import VnCorenlpHandler
 import os
 import pickle
+import logging
 
-vncore_handler = VnCorenlpHandler(
-    "/Users/phuongnguyen/study/vn-qa-gen/vncorenlp")
+vncore_handler = VnCorenlpHandler.get_instance()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
-def load_sample_probs(self):
+def load_sample_probs():
     """Load sampling probabilities from ViQuAD"""
     viquad_probs_file = "viquad_sample_probs.pkl"
 
@@ -53,6 +57,8 @@ def val2bin(input_val: float, min_val: float, max_val: float, bin_width: float) 
 
 def get_token2char(tokens: List[str], text: str) -> Tuple[Dict, Dict]:
     """Create mappings between token indices and character positions"""
+    tokens = [t.replace('_', ' ') for t in tokens]
+
     token2idx = {}
     idx2token = {}
     current_pos = 0
@@ -84,148 +90,86 @@ def str_find(text: str, token_list: List[str]) -> Tuple[int, int]:
 
 
 def get_chunks(sentence: str):
-    """Get chunks from Vietnamese sentence with improved compound noun handling"""
-    # Initial tokenization and tagging
-    tokens = word_tokenize(sentence)
-    pos_tags = pos_tag(sentence)
-    ner_tags = ner(sentence)
-    chunk_results = underthesea.chunk(sentence)
+    """Get chunks from Vietnamese sentence using VnCoreNLP"""
+    try:
+        # Get annotation from VnCoreNLP
+        annotated = vncore_handler.model.annotate_text(sentence)
+        if not annotated or 0 not in annotated:
+            return [], None, []
 
-    # Helper function to check if tokens form a valid compound
-    def is_valid_compound(start_idx: int, end_idx: int,
-                          pos_tags: List[tuple], ner_tags: List[tuple]) -> bool:
-        """Check if tokens from start to end form a valid compound based on linguistic patterns"""
-        if start_idx >= end_idx:
-            return False
+        tokens = []
+        pos_tags = []
+        ner_tags = []
 
-        # Get POS and NER tags for the span
-        span_pos = [tag[1] for tag in pos_tags[start_idx:end_idx + 1]]
-        span_ner = [tag[3] for tag in ner_tags[start_idx:end_idx + 1]]
+        # Process tokens
+        for token in annotated[0]:
+            # Replace underscores with spaces in word forms
+            word = token['wordForm'].replace('_', ' ')
+            tokens.append(word)
+            pos_tags.append(token['posTag'])
+            ner_tags.append(token['nerLabel'])
 
-        # Check patterns that indicate compounds:
+        # Build chunks based on NER tags and POS patterns
+        chunklist = []
+        current_chunk = []
+        current_start = 0
+        current_type = None
 
-        # 1. Continuous proper nouns or nouns
-        if all(pos in ['N', 'Np', 'Nc'] for pos in span_pos):
-            return True
-
-        # 2. Named entity continuation
-        if any(tag.startswith('B-') for tag in span_ner) and \
-           any(tag.startswith('I-') for tag in span_ner):
-            return True
-
-        # 3. Noun + Modifier pattern (e.g., "sông lớn", "thành phố cổ")
-        if len(span_pos) == 2 and span_pos[0] in ['N', 'Np'] and span_pos[1] in ['A', 'N']:
-            return True
-
-        # 4. Location compounds (e.g., "miền Bắc", "thành phố Hà Nội")
-        if span_pos[0] in ['N', 'Np'] and any(tag.startswith('B-LOC') or tag.startswith('I-LOC') for tag in span_ner):
-            return True
-
-        return False
-
-    # First pass: Process NER tags to identify base entities
-    compound_dict = {}
-    current_entity = []
-    current_start = None
-    current_type = None
-
-    for i, (word, pos, _, ner_tag) in enumerate(ner_tags):
-        if ner_tag.startswith('B-'):
-            if current_entity:
-                compound_text = " ".join(current_entity)
-                compound_dict[compound_text] = {
-                    'type': current_type,
-                    'start': current_start,
-                    'end': i - 1,
-                    'pos': 'Np'  # Mark as proper noun
-                }
-            current_entity = [word]
-            current_type = ner_tag[2:]
-            current_start = i
-        elif ner_tag.startswith('I-'):
-            current_entity.append(word)
-        else:
-            if current_entity:
-                compound_text = " ".join(current_entity)
-                compound_dict[compound_text] = {
-                    'type': current_type,
-                    'start': current_start,
-                    'end': i - 1,
-                    'pos': 'Np'
-                }
-                current_entity = []
-            # Check for potential compound start
-            if pos in ['N', 'Np']:
-                current_entity = [word]
+        for i, (token, pos, ner) in enumerate(zip(tokens, pos_tags, ner_tags)):
+            if ner.startswith('B-'):
+                # End previous chunk if exists
+                if current_chunk:
+                    chunklist.append((
+                        current_type,
+                        pos_tags[current_start],
+                        current_chunk,
+                        current_start,
+                        i - 1
+                    ))
+                # Start new NER chunk
+                current_chunk = [token]
                 current_start = i
-                current_type = 'UNK'
+                current_type = ner[2:]
+            elif ner.startswith('I-'):
+                # Continue current NER chunk
+                current_chunk.append(token)
+            else:
+                # End previous chunk if exists
+                if current_chunk:
+                    chunklist.append((
+                        current_type,
+                        pos_tags[current_start],
+                        current_chunk,
+                        current_start,
+                        i - 1
+                    ))
+                    current_chunk = []
 
-    if current_entity:
-        compound_text = " ".join(current_entity)
-        compound_dict[compound_text] = {
-            'type': current_type,
-            'start': current_start,
-            'end': len(ner_tags) - 1,
-            'pos': 'Np'
-        }
+                # Create single token chunk if it's a content word
+                if pos not in ['CH', 'C', 'E', 'R', 'T']:
+                    chunklist.append((
+                        'UNK',
+                        pos,
+                        [token],
+                        i,
+                        i
+                    ))
 
-    # Second pass: Look for additional compounds using linguistic patterns
-    i = 0
-    while i < len(tokens) - 1:
-        # Try extending current token to form compounds
-        for j in range(i + 1, min(i + 5, len(tokens))):  # Look up to 4 tokens ahead
-            if is_valid_compound(i, j, pos_tags, ner_tags):
-                compound_text = " ".join(tokens[i:j + 1])
-                # Check if this compound or its parts aren't already in compound_dict
-                if not any(existing_comp for existing_comp in compound_dict
-                           if compound_text in existing_comp or existing_comp in compound_text):
-                    # Determine compound type from NER tags
-                    compound_ner = [tag[3] for tag in ner_tags[i:j + 1]]
-                    compound_type = 'UNK'
-                    for tag in compound_ner:
-                        if tag.startswith('B-'):
-                            compound_type = tag[2:]
-                            break
-
-                    compound_dict[compound_text] = {
-                        'type': compound_type,
-                        'start': i,
-                        'end': j,
-                        'pos': 'Np' if any(tag[1] == 'Np' for tag in pos_tags[i:j + 1]) else 'N'
-                    }
-        i += 1
-
-    # Build final chunklist
-    chunklist = []
-    processed_positions = set()
-
-    # Add compounds first
-    for compound_text, info in sorted(compound_dict.items(), key=lambda x: x[1]['start']):
-        chunk_tokens = word_tokenize(compound_text)
-        for i in range(info['start'], info['end'] + 1):
-            processed_positions.add(i)
-
-        chunklist.append((
-            info['type'],
-            info['pos'],
-            chunk_tokens,
-            info['start'],
-            info['end']
-        ))
-
-    # Add remaining single tokens
-    for i, (token, pos, _, ner_tag) in enumerate(ner_tags):
-        if i not in processed_positions and pos not in ['CH', 'C', 'E', 'R', 'T']:
-            ner_type = ner_tag[2:] if ner_tag.startswith('B-') else 'UNK'
+        # Add final chunk if exists
+        if current_chunk:
             chunklist.append((
-                ner_type,
-                pos,
-                [token],
-                i,
-                i
+                current_type,
+                pos_tags[current_start],
+                current_chunk,
+                current_start,
+                len(tokens) - 1
             ))
 
-    return chunklist, None, tokens
+        return chunklist, None, tokens
+
+    except Exception as e:
+        logger.error(f"Error in get_chunks: {str(e)}")
+        return [], None, []
 
 
 def select_answers(
@@ -239,7 +183,7 @@ def select_answers(
 ) -> Tuple[List, List, None, List]:
     """Select potential answers from sentence"""
     # Get chunks
-    chunklist, _, tokens = get_chunks(sentence)
+    chunklist, _, tokens = get_chunks(sentence, )
     print(f"\nFound chunks: {len(chunklist)}")
 
     # Filter valid chunks
@@ -259,20 +203,20 @@ def select_answers(
         # Calculate base score based on chunk type
         base_score = 1.0
 
-        # # Prefer named entities
-        # if chunk[0] != "UNK":
-        #     base_score *= 3.0
-        #     print(f"Named entity bonus for: {chunk_text}")
+        # Prefer named entities
+        if chunk[0] != "UNK":
+            base_score *= 3.0
+            print(f"Named entity bonus for: {chunk_text}")
 
-        # # Prefer nouns and noun phrases
-        # if chunk[1] in ['N', 'Np']:
-        #     base_score *= 2.0
-        #     print(f"Noun bonus for: {chunk_text}")
+        # Prefer nouns and noun phrases
+        if chunk[1] in ['N', 'Np']:
+            base_score *= 2.0
+            print(f"Noun bonus for: {chunk_text}")
 
-        # # Prefer longer meaningful phrases
-        # if len(chunk[2]) >= 2:
-        #     base_score *= 1.5
-        #     print(f"Length bonus for: {chunk_text}")
+        # Prefer longer meaningful phrases
+        if len(chunk[2]) >= 2:
+            base_score *= 1.5
+            print(f"Length bonus for: {chunk_text}")
 
         # Get probability from learned distribution
         chunk_pos_tag = chunk[1]
@@ -354,7 +298,6 @@ def select_clues(
     tokens: List[str],
     sample_probs: Dict,
     selected_answer: Tuple,
-    vncore_handler: VnCorenlpHandler,
     num_sample_clue: int = 2,
     clue_dep_dist_bin_width: int = 2,
     clue_dep_dist_min_val: int = 0,
@@ -405,7 +348,6 @@ def select_clues(
             sentence,
             chunk[3],  # clue start
             ans_start,  # answer start
-            tokens  # Pass underthesea tokens for mapping
         )
 
         if distance_result is None:
@@ -613,15 +555,11 @@ def get_sample_probs(examples: List[Dict],
             sentence = e["sentence"]
             chunklist, _, tokens = get_chunks(sentence)
 
-            # Find clue in question and its dependency distance
-            # You might need to implement this part based on your clue identification logic
             for chunk in chunklist:
                 chunk_text = " ".join(chunk[2]).lower()
                 if chunk_text in e["question"].lower():
                     c_tag = f"{chunk[1]}-{chunk[0]}"  # POS-NER tag
 
-                    # Calculate dependency distance
-                    # Find answer position
                     answer_start = None
                     for i, c in enumerate(chunklist):
                         if " ".join(c[2]) == e["answer_text"]:
@@ -634,7 +572,6 @@ def get_sample_probs(examples: List[Dict],
                             sentence,
                             chunk[3],  # clue start
                             answer_start,
-                            tokens
                         )
 
                         if distance_result:
@@ -679,7 +616,6 @@ def get_sample_probs(examples: List[Dict],
 def augment_qg_data(
     sentence: str,
     sample_probs: Dict,
-    vncore_handler: VnCorenlpHandler,
     num_sample_answer: int = 5,
     num_sample_clue: int = 2,
     num_sample_style: int = 2,
@@ -738,7 +674,6 @@ def augment_qg_data(
             tokens,
             sample_probs,
             ans,
-            vncore_handler,
             num_sample_clue,
             clue_dep_dist_bin_width,
             clue_dep_dist_min_val,
@@ -760,40 +695,7 @@ if __name__ == "__main__":
     print("=== Testing Vietnamese Question Generation Data Augmentation ===\n")
 
     # 1. Test with sample training data
-    print("1. Testing with sample training data:")
-    training_examples = [
-        {
-            "ans_sent": "Nguyễn Du là một nhà thơ lớn của Việt Nam",
-            "question": "Ai là nhà thơ lớn của Việt Nam?",
-            "answer_text": "Nguyễn Du",
-            "answer_start": 0
-        },
-        {
-            "ans_sent": "Hà Nội là thủ đô của nước Việt Nam từ năm 1010",
-            "question": "Đâu là thủ đô của Việt Nam?",
-            "answer_text": "Hà Nội",
-            "answer_start": 0
-        },
-        {
-            "ans_sent": "Trường Đại học Bách Khoa Hà Nội được thành lập vào năm 1956",
-            "question": "Khi nào Trường Đại học Bách Khoa Hà Nội được thành lập?",
-            "answer_text": "năm 1956",
-            "answer_start": 55
-        }
-    ]
-
-    print("\nCalculating sampling probabilities...")
-    try:
-        sample_probs = get_sample_probs(training_examples)
-        print("Sample probabilities calculated")
-        print("Probabilities:", sample_probs)
-    except Exception as e:
-        print(f"Error calculating probabilities: {str(e)}")
-        sample_probs = {
-            "a": Counter(),
-            "c|a": Counter(),
-            "s|c,a": Counter()
-        }
+    sample_probs = load_sample_probs()
 
     # 2. Test data augmentation
     print("\n2. Testing data augmentation:")
@@ -818,7 +720,6 @@ if __name__ == "__main__":
             result = augment_qg_data(
                 sentence=sentence,
                 sample_probs=sample_probs,
-                vncore_handler=vncore_handler,
                 num_sample_answer=3,
                 num_sample_clue=2,
                 num_sample_style=2
