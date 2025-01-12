@@ -10,3 +10,6 @@ mycreds.txt
 Datasets
 credentials*
 settings.yaml
+vn_qa_gen.egg-info
+debug*.txt
+vncorenlp/*
