@@ -11,6 +11,7 @@ import pickle
 import os
 import logging
 import numpy as np
+from data_agumentor.data_augmentor import load_sample_probs
 
 # Configure logging
 logging.basicConfig(
@@ -33,24 +34,7 @@ class QAGenerationService:
         self.model.eval()
 
         # Load or initialize sampling probabilities
-        self.sample_probs = self.load_sample_probs()
-
-    def load_sample_probs(self):
-        """Load sampling probabilities from ViQuAD"""
-        viquad_probs_file = "viquad_sample_probs.pkl"
-
-        if os.path.exists(viquad_probs_file):
-            print(f"Loading probabilities from {viquad_probs_file}")
-            with open(viquad_probs_file, 'rb') as f:
-                probs = pickle.load(f)
-                print(f"Loaded probabilities with:")
-                print(f"- {len(probs['a'])} answer patterns")
-                print(f"- {len(probs['c|a'])} clue patterns")
-                print(f"- {len(probs['s|c,a'])} style patterns")
-                return probs
-        else:
-            raise FileNotFoundError(
-                f"Sample probabilities file not found at {viquad_probs_file}")
+        self.sample_probs = load_sample_probs()
 
     def prepare_instance(self, paragraph: str, answer_info: Dict, style: str, clue: Dict) -> Dict:
         """Prepare instance for question generation with proper tokenization"""

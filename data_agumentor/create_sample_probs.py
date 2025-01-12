@@ -5,6 +5,7 @@ import logging
 from tqdm import tqdm
 from typing import List, Dict
 import pickle
+import glob
 import os
 
 from data_agumentor.data_augmentor import get_sample_probs, get_chunks
@@ -15,6 +16,24 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def load_all_viquad_data(folder_path: str) -> List[Dict]:
+    """Load and process all ViQuAD data files from the given folder"""
+    logger.info(f"Loading all ViQuAD data from {folder_path}")
+
+    all_examples = []
+    json_files = glob.glob(os.path.join(folder_path, "*_ViQuAD.json"))
+
+    for file_path in json_files:
+        logger.info(f"Processing file: {os.path.basename(file_path)}")
+        examples = load_viquad_data(file_path)
+        all_examples.extend(examples)
+        logger.info(
+            f"Loaded {len(examples)} examples from {os.path.basename(file_path)}")
+
+    logger.info(f"Total examples loaded: {len(all_examples)}")
+    return all_examples
 
 
 def load_viquad_data(file_path: str) -> List[Dict]:
@@ -80,14 +99,14 @@ def load_viquad_data(file_path: str) -> List[Dict]:
         raise
 
 
-def create_sample_probs_from_viquad(viquad_file: str,
+def create_sample_probs_from_viquad(viquad_folder: str,
                                     output_file: str = "viquad_sample_probs.pkl",
                                     answer_length_bins: int = 10,
                                     clue_distance_bins: int = 10):
     """Create sampling probabilities file from ViQuAD dataset"""
     try:
         # Load ViQuAD data
-        examples = load_viquad_data(viquad_file)
+        examples = load_all_viquad_data(viquad_folder)
 
         if not examples:
             raise ValueError("No examples loaded from ViQuAD")
@@ -130,14 +149,13 @@ def test_sample_probs(sample_probs: Dict):
 def main():
     """Main function to create sample probabilities"""
     # Paths
-    viquad_train_file = "datasets/ViQuAD1.0/train_ViQuAD.json"
+    viquad_folder = "/Users/phuongnguyen/study/vn-qa-gen/datasets/ViQuAD1.0"
     output_file = "viquad_sample_probs.pkl"
-
     try:
         # Create sample probabilities
         logger.info("Starting sample probability creation from ViQuAD...")
         sample_probs = create_sample_probs_from_viquad(
-            viquad_file=viquad_train_file,
+            viquad_folder=viquad_folder,
             output_file=output_file
         )
 
